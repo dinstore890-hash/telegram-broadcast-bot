@@ -197,7 +197,7 @@ async def cancel_user_broadcast_cb(update: Update, context: ContextTypes.DEFAULT
     await query.answer()
     context.user_data.clear()
     from handlers.start import _build_user_dashboard, _user_keyboard
-    text, active = await _build_user_dashboard(query.from_user.id)
+    text, active = await _build_user_dashboard(query.from_user.id, query.from_user.first_name or "")
     try:
         await query.edit_message_text(text, reply_markup=_user_keyboard(active))
     except Exception:

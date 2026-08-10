@@ -44,7 +44,7 @@ def _user_keyboard(has_license: bool = False) -> InlineKeyboardMarkup:
     ])
 
 
-async def _build_user_dashboard(user_id: int) -> str:
+async def _build_user_dashboard(user_id: int, first_name: str = "") -> str:
     from datetime import datetime
     hour = datetime.now().hour
     if hour < 11:
@@ -78,7 +78,7 @@ async def _build_user_dashboard(user_id: int) -> str:
     return (
         f"╭─ 💎 Gmail Market JASNEB 💎\n"
         f"│\n"
-        f"│ Halo, {greeting} 👋\n"
+        f"│ Halo, {first_name + '! ' if first_name else ''}{greeting} 👋\n"
         f"{lisensi_info}"
         f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
         f"│       𝐎𝐰𝐧𝐞𝐫 @GmailMarket67\n"
@@ -191,7 +191,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         text = await _build_admin_dashboard(connected)
         await update.message.reply_text(text, reply_markup=_main_keyboard(is_running()))
     else:
-        text, active = await _build_user_dashboard(user.id)
+        text, active = await _build_user_dashboard(user.id, user.first_name or "")
         await update.message.reply_text(text, reply_markup=_user_keyboard(active))
 
 
@@ -208,7 +208,7 @@ async def dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except Exception:
             pass
     else:
-        text, active = await _build_user_dashboard(query.from_user.id)
+        text, active = await _build_user_dashboard(query.from_user.id, query.from_user.first_name or "")
         try:
             await query.edit_message_text(text, reply_markup=_user_keyboard(active))
         except Exception:
