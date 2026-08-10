@@ -191,8 +191,8 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         text = await _build_admin_dashboard(connected)
         await update.message.reply_text(text, reply_markup=_main_keyboard(is_running()))
     else:
-        text = await _build_user_dashboard(user.id)
-        await update.message.reply_text(text, reply_markup=_user_keyboard())
+        text, active = await _build_user_dashboard(user.id)
+        await update.message.reply_text(text, reply_markup=_user_keyboard(active))
 
 
 async def dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -208,9 +208,9 @@ async def dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         except Exception:
             pass
     else:
-        text = await _build_user_dashboard(query.from_user.id)
+        text, active = await _build_user_dashboard(query.from_user.id)
         try:
-            await query.edit_message_text(text, reply_markup=_user_keyboard())
+            await query.edit_message_text(text, reply_markup=_user_keyboard(active))
         except Exception:
             pass
 
