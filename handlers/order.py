@@ -154,7 +154,7 @@ async def pilih_durasi_callback(update: Update, context: ContextTypes.DEFAULT_TY
         [InlineKeyboardButton("❌ Batal", callback_data="cb_dashboard")]
     ])
 
-    # Ambil file_id dari DB (prioritas) atau config
+    # Ambil file_id dari DB
     qris_id = db.get_setting("qris_file_id") or QRIS_FILE_ID
 
     await query.message.delete()
@@ -165,19 +165,10 @@ async def pilih_durasi_callback(update: Update, context: ContextTypes.DEFAULT_TY
             reply_markup=keyboard,
         )
     else:
-        # Fallback: cek file lokal
-        qris_path = os.path.join("data", "qris", "qris.jpg")
-        if os.path.exists(qris_path):
-            await update.effective_chat.send_photo(
-                photo=open(qris_path, "rb"),
-                caption=caption,
-                reply_markup=keyboard,
-            )
-        else:
-            await update.effective_chat.send_message(
-                caption + "\n│\n│ ⚠️ QRIS belum disetup admin.",
-                reply_markup=keyboard,
-            )
+        await update.effective_chat.send_message(
+            caption,
+            reply_markup=keyboard,
+        )
 
     return WAIT_BUKTI
 
@@ -364,18 +355,27 @@ async def admin_reject_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def setqris_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Admin kirim foto QRIS → bot simpan file_id ke DB."""
     if not is_admin(update.effective_user.id):
         return
-    if not update.message.photo:
+
+    # Cek apakah ada foto di pesan ini atau pesan yang di-reply
+    photo = None
+    if update.message.photo:
+        photo = update.message.photo[-1]
+    elif update.message.reply_to_message and update.message.reply_to_message.photo:
+        photo = update.message.reply_to_message.photo[-1]
+
+    if not photo:
         await update.message.reply_text(
             "╭─ ⚠️ CARA PAKAI\n"
             "│\n"
-            "│ Kirim foto QRIS dengan caption /setqris\n"
+            "│ 1. Kirim/forward foto QRIS ke bot\n"
+            "│ 2. Reply foto itu dengan /setqris\n"
             "╰─"
         )
         return
-    file_id = update.message.photo[-1].file_id
+
+    file_id = photo.file_id
     db.set_setting("qris_file_id", file_id)
     await update.message.reply_text(
         "╭─ ✅ QRIS BERHASIL DISIMPAN\n"
