@@ -103,13 +103,13 @@ async def _build_admin_dashboard(connected: bool) -> str:
         f"│\n"
         f"│ 📡 Akun Telethon : {account_status}\n"
         f"│\n"
-        f"│ ⭐ 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐁𝐛𝐎𝐀𝐃𝐂𝐀𝐒𝐓\n"
+        f"│ ⭐ 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐁𝐑𝐎𝐀𝐃𝐂𝐀𝐒𝐓\n"
         f"│  ⤷  Total Target  : {stats['total_targets']}\n"
         f"│  ⤷  Target Aktif  : {stats['active_targets']}\n"
         f"│  ⤷  Total Terkirim: {stats['total_success']}\n"
         f"│  ⤷  Total Gagal   : {stats['total_failed']}\n"
         f"{broadcast_info}"
-        f"│ ⭐ 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐔𝐒𝐄𝐛\n"
+        f"│ ⭐ 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐔𝐒𝐄𝐑\n"
         f"│  ⤷  Pengguna Baru   : {user_stats['new_users']}\n"
         f"│  ⤷  Total Pengguna  : {user_stats['total_users']}\n"
         f"│  ⤷  Kunjungan Baru  : {user_stats['new_visits']}\n"
@@ -160,14 +160,15 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     test_status = "🟢 AKTIF" if TEST_MODE else "🔴 NONAKTIF"
     from config import BROADCAST_DELAY
     text = (
-        "⚙️ *PENGATURAN*\n"
-        "━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"🧪 Test Mode    : {test_status}\n"
-        f"⏱️ Broadcast Delay : {BROADCAST_DELAY}s\n\n"
-        "_Ubah pengaturan melalui file `.env` lalu restart bot._"
+        f"╭─ ⚙️ PENGATURAN\n"
+        f"│\n"
+        f"│  ⤷  Test Mode       : {test_status}\n"
+        f"│  ⤷  Broadcast Delay : {BROADCAST_DELAY}s\n"
+        f"│\n"
+        f"╰─ Ubah via file .env lalu restart bot."
     )
     await query.edit_message_text(
-        text, parse_mode="Markdown",
+        text,
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
         ]),

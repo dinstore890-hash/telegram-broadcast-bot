@@ -72,8 +72,7 @@ async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     test_badge = "  🧪 TEST MODE" if TEST_MODE else ""
     await query.edit_message_text(
-        f"📢 *PILIH TARGET*{test_badge}\n\nCentang/hapus centang target broadcast:",
-        parse_mode="Markdown",
+        f"╭─ 📢 PILIH TARGET{test_badge}\n│\n╰─ Centang/hapus centang target broadcast:",
         reply_markup=_build_target_keyboard(targets, selected),
     )
     return SELECT_TARGETS
@@ -96,8 +95,7 @@ async def toggle_target_callback(update: Update, context: ContextTypes.DEFAULT_T
     targets = context.user_data.get("bc_targets", [])
     test_badge = "  🧪 TEST MODE" if TEST_MODE else ""
     await query.edit_message_text(
-        f"📢 *PILIH TARGET*{test_badge}\n\nCentang/hapus centang target broadcast:",
-        parse_mode="Markdown",
+        f"╭─ 📢 PILIH TARGET{test_badge}\n│\n╰─ Centang/hapus centang target broadcast:",
         reply_markup=_build_target_keyboard(targets, selected),
     )
     return SELECT_TARGETS
@@ -115,10 +113,11 @@ async def bc_next_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return SELECT_TARGETS
 
     await query.edit_message_text(
-        "✏️ *TULIS PESAN BROADCAST*\n\n"
-        "Kirim pesan yang ingin dibroadcast.\n\n"
-        "_Ketik /cancel untuk membatalkan._",
-        parse_mode="Markdown",
+        "╭─ ✏️ TULIS PESAN BROADCAST\n"
+        "│\n"
+        "│ Kirim pesan yang ingin dibroadcast.\n"
+        "│\n"
+        "╰─ Ketik /cancel untuk batal."
     )
     return WAIT_MESSAGE
 
@@ -137,23 +136,24 @@ async def wait_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
     selected  = context.user_data.get("bc_selected", set())
     all_tgts  = context.user_data.get("bc_targets", [])
     chosen    = [t for t in all_tgts if t["id"] in selected]
-    test_badge = "🧪 TEST MODE — tidak ada pesan yang benar-benar dikirim\n\n" if TEST_MODE else ""
+    test_badge = "🧪 TEST MODE\n│\n" if TEST_MODE else ""
 
-    target_lines = "\n".join(f"• {t['title']}" for t in chosen)
+    target_lines = "\n".join(f"│  • {t['title']}" for t in chosen)
     preview = (
-        f"📢 *PREVIEW BROADCAST*\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"{test_badge}"
-        f"*Pesan:*\n_{message}_\n\n"
-        f"*Target ({len(chosen)}):*\n{target_lines}"
+        f"╭─ 📢 PREVIEW BROADCAST\n"
+        f"│\n"
+        f"│ {test_badge}"
+        f"│ Pesan:\n│  {message}\n"
+        f"│\n"
+        f"│ Target ({len(chosen)}):\n{target_lines}\n"
+        f"╰─ Kirim atau batalkan?"
     )
 
     if len(preview) > 4096:
-        preview = preview[:4050] + "\n\n_...terpotong._"
+        preview = preview[:4050] + "\n│ ...terpotong.\n╰─"
 
     await update.message.reply_text(
         preview,
-        parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("🚀 KIRIM",  callback_data="bc_confirm"),
@@ -275,12 +275,13 @@ async def pause_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     state = broadcast_service.get_state()
     try:
         await query.edit_message_text(
-            f"⏸️ *Broadcast Dijeda*\n\n"
-            f"📨 Terkirim : {state['current']}/{state['total']}\n"
-            f"✅ Berhasil : {state['success']}\n"
-            f"❌ Gagal    : {state['failed']}\n\n"
-            f"Gunakan tombol di bawah untuk melanjutkan atau membatalkan.",
-            parse_mode="Markdown",
+            f"╭─ ⏸️ BROADCAST DIJEDA\n"
+            f"│\n"
+            f"│  ⤷  Terkirim : {state['current']}/{state['total']}\n"
+            f"│  ⤷  Berhasil : {state['success']}\n"
+            f"│  ⤷  Gagal    : {state['failed']}\n"
+            f"│\n"
+            f"╰─ Lanjutkan atau batalkan?",
             reply_markup=InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("▶️ Resume",  callback_data="bc_resume"),

@@ -20,24 +20,27 @@ async def logs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     logs = db.get_logs(limit=30)
     if not logs:
         await query.edit_message_text(
-            "📜 Belum ada log.",
+            "╭─ 📜 LOGS\n"
+            "│\n"
+            "│ Belum ada log.\n"
+            "╰─",
             reply_markup=_BACK_BTN,
         )
         return
 
-    lines = ["📜 *LOGS (30 terakhir)*\n━━━━━━━━━━━━━━━━━━━━\n"]
+    lines = ["╭─ 📜 LOGS (30 terakhir)\n│"]
     for log in logs:
         icon = _LEVEL_ICON.get(log["level"], "•")
         time = log["created_at"][11:19]
-        lines.append(f"`[{time}]` {icon} {log['message']}")
+        lines.append(f"│ [{time}] {icon} {log['message']}")
+    lines.append("╰─")
 
     text = "\n".join(lines)
     if len(text) > 4096:
-        text = text[:4050] + "\n\n_...terpotong._"
+        text = text[:4050] + "\n│ ...terpotong.\n╰─"
 
     await query.edit_message_text(
         text,
-        parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("🔄 Refresh", callback_data="cb_logs")],
             [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
