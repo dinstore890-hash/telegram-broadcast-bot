@@ -24,12 +24,12 @@ _BACK_BTN = InlineKeyboardMarkup([
 # ── Paket & Harga ─────────────────────────────────────────────────────────────
 
 PAKET = {
-    "basic_20":   {"label": "JASEB BASIC 20 Grup",   "max_grup": 20},
-    "basic_30":   {"label": "JASEB BASIC 30 Grup",   "max_grup": 30},
-    "basic_50":   {"label": "JASEB BASIC 50 Grup",   "max_grup": 50},
-    "forward_20": {"label": "JASEB FORWARD 20 Grup", "max_grup": 20},
-    "forward_30": {"label": "JASEB FORWARD 30 Grup", "max_grup": 30},
-    "forward_50": {"label": "JASEB FORWARD 50 Grup", "max_grup": 50},
+    "basic_20":   {"label": "JASNEB BASIC 20 Grup",   "max_grup": 20},
+    "basic_30":   {"label": "JASNEB BASIC 30 Grup",   "max_grup": 30},
+    "basic_50":   {"label": "JASNEB BASIC 50 Grup",   "max_grup": 50},
+    "forward_20": {"label": "JASNEB FORWARD 20 Grup", "max_grup": 20},
+    "forward_30": {"label": "JASNEB FORWARD 30 Grup", "max_grup": 30},
+    "forward_50": {"label": "JASNEB FORWARD 50 Grup", "max_grup": 50},
 }
 
 HARGA = {
@@ -81,9 +81,9 @@ async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await query.answer()
 
     await query.edit_message_text(
-        "╭─ 🛒 ORDER JASEB\n"
+        "╭─ 🛒 ORDER JASNEB\n"
         "│\n"
-        "│ 🇮🇩 PROMO JASEB BY @GmailMarket67\n"
+        "│ 🇮🇩 PROMO JASNEB BY @GmailMarket67\n"
         "│ 🔥 Spesial HUT RI ke-81\n"
         "│\n"
         "│ Pilih paket yang kamu inginkan:\n"
