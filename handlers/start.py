@@ -215,43 +215,6 @@ async def dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             pass
 
 
-async def user_broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    user_id = query.from_user.id
-
-    lic = db.get_license(user_id)
-    if not lic or not db.is_license_active(user_id):
-        await query.edit_message_text(
-            "╭─ ⚠️ LISENSI TIDAK AKTIF\n"
-            "│\n"
-            "│ Lisensi kamu sudah habis atau belum aktif.\n"
-            "│ Silakan order untuk melanjutkan.\n"
-            "╰─",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🛒 Order Sekarang", callback_data="cb_order")],
-                [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
-            ]),
-        )
-        return
-
-    expired = lic["expired_at"][:10]
-    await query.edit_message_text(
-        f"╭─ 📢 BROADCAST\n"
-        f"│\n"
-        f"│ 🎫 Paket    : {lic['paket']}\n"
-        f"│ 👥 Max Grup : {lic['max_grup']}\n"
-        f"│ 📅 Expired  : {expired}\n"
-        f"│\n"
-        f"│ Fitur broadcast akan segera tersedia.\n"
-        f"│ Hubungi @GmailMarket67 untuk info lebih lanjut.\n"
-        f"╰─",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
-        ]),
-    )
-
-
 async def lisensi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()

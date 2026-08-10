@@ -9,8 +9,9 @@ from services import telegram_client
 
 from handlers.start import (
     start_handler, dashboard_callback, settings_callback,
-    lisensi_callback, user_broadcast_callback,
+    lisensi_callback,
 )
+from handlers.user_broadcast import build_user_broadcast_conversation
 from handlers.account import (
     account_callback, reconnect_callback, logout_callback,
     build_login_conversation,
@@ -80,6 +81,7 @@ def build_app():
     app.add_handler(build_addtarget_conversation())
     app.add_handler(build_broadcast_conversation())
     app.add_handler(build_order_conversation())
+    app.add_handler(build_user_broadcast_conversation())
 
     app.add_handler(CallbackQueryHandler(dashboard_callback,      pattern="^cb_dashboard$"))
     app.add_handler(CallbackQueryHandler(account_callback,        pattern="^cb_account$"))
@@ -99,7 +101,6 @@ def build_app():
     app.add_handler(CallbackQueryHandler(order_callback,          pattern="^cb_order$"))
     app.add_handler(CallbackQueryHandler(pilih_paket_callback,    pattern="^ord_paket_"))
     app.add_handler(CallbackQueryHandler(lisensi_callback,        pattern="^cb_lisensi$"))
-    app.add_handler(CallbackQueryHandler(user_broadcast_callback, pattern="^cb_user_broadcast$"))
     app.add_handler(CallbackQueryHandler(admin_confirm_callback,  pattern="^adm_confirm_"))
     app.add_handler(CallbackQueryHandler(admin_reject_callback,   pattern="^adm_reject_"))
 
