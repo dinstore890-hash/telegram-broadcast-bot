@@ -7,7 +7,10 @@ from config import BOT_TOKEN, LOG_DIR
 from database import init_db
 from services import telegram_client
 
-from handlers.start import start_handler, dashboard_callback, settings_callback
+from handlers.start import (
+    start_handler, dashboard_callback, settings_callback,
+    lisensi_callback, user_broadcast_callback,
+)
 from handlers.account import (
     account_callback, reconnect_callback, logout_callback,
     build_login_conversation,
@@ -29,7 +32,6 @@ from handlers.order import (
     admin_confirm_callback, admin_reject_callback,
     build_order_conversation, setqris_handler,
 )
-from handlers.start import lisensi_callback
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -45,12 +47,10 @@ logger = logging.getLogger(__name__)
 
 
 async def post_init(app) -> None:
-    """Jalankan setelah bot siap: connect Telethon jika session ada."""
     from telegram import BotCommand
     await app.bot.set_my_commands([
         BotCommand("start", "🚀 Buka Dashboard"),
     ])
-
     ok = await telegram_client.connect()
     if ok:
         me = await telegram_client.get_me()
@@ -99,6 +99,7 @@ def build_app():
     app.add_handler(CallbackQueryHandler(order_callback,          pattern="^cb_order$"))
     app.add_handler(CallbackQueryHandler(pilih_paket_callback,    pattern="^ord_paket_"))
     app.add_handler(CallbackQueryHandler(lisensi_callback,        pattern="^cb_lisensi$"))
+    app.add_handler(CallbackQueryHandler(user_broadcast_callback, pattern="^cb_user_broadcast$"))
     app.add_handler(CallbackQueryHandler(admin_confirm_callback,  pattern="^adm_confirm_"))
     app.add_handler(CallbackQueryHandler(admin_reject_callback,   pattern="^adm_reject_"))
 
