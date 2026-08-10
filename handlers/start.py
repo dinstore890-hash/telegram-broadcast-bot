@@ -81,7 +81,9 @@ async def _build_user_dashboard(user_id: int, first_name: str = "") -> str:
         f"│ Halo, {first_name + '! ' if first_name else ''}{greeting} 👋\n"
         f"{lisensi_info}"
         f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
-        f"│       𝐎𝐰𝐧𝐞𝐫 @GmailMarket67\n"
+        f"│  𝐎𝐰𝐧𝐞𝐫 @GmailMarket67\n"
+        f"│  👥 Grup    : https://t.me/+sVVIxK_QnhthM2E1\n"
+        f"│  📢 Channel : https://t.me/GmailxMarket\n"
         f"╰─ Gunakan menu untuk mulai promosi instant 🤖"
     ), active
 
