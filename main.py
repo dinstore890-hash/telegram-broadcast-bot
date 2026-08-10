@@ -40,6 +40,12 @@ logger = logging.getLogger(__name__)
 
 async def post_init(app) -> None:
     """Jalankan setelah bot siap: connect Telethon jika session ada."""
+    from telegram import MenuButtonCommands, BotCommand
+    await app.bot.set_my_commands([
+        BotCommand("start", "🚀 Buka Dashboard"),
+    ])
+    await app.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
+
     ok = await telegram_client.connect()
     if ok:
         me = await telegram_client.get_me()
