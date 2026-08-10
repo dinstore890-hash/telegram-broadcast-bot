@@ -357,7 +357,7 @@ async def admin_reject_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 f"│\n"
                 f"│ Bukti bayar kamu tidak valid.\n"
                 f"│ Silakan order ulang atau hubungi\n"
-                f"│ admin @qmaggnum\n"
+                f"│ owner @GmailMarket67\n"
                 f"╰─"
             ),
         )
