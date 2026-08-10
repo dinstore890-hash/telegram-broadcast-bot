@@ -430,6 +430,7 @@ def build_order_conversation() -> ConversationHandler:
         },
         fallbacks=[
             CallbackQueryHandler(cancel_order_callback, pattern="^cb_dashboard$"),
+            CallbackQueryHandler(cancel_order_callback, pattern="^cb_order$"),
             MessageHandler(filters.COMMAND, cancel_order),
         ],
         per_chat=True,

@@ -192,6 +192,19 @@ async def cancel_user_broadcast(update: Update, context: ContextTypes.DEFAULT_TY
     return ConversationHandler.END
 
 
+async def cancel_user_broadcast_cb(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    context.user_data.clear()
+    from handlers.start import _build_user_dashboard, _user_keyboard
+    text, active = await _build_user_dashboard(query.from_user.id)
+    try:
+        await query.edit_message_text(text, reply_markup=_user_keyboard(active))
+    except Exception:
+        await update.effective_chat.send_message(text, reply_markup=_user_keyboard(active))
+    return ConversationHandler.END
+
+
 def build_user_broadcast_conversation() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[
@@ -199,14 +212,16 @@ def build_user_broadcast_conversation() -> ConversationHandler:
         ],
         states={
             WAIT_USER_MESSAGE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, wait_user_message)
+                CallbackQueryHandler(cancel_user_broadcast_cb, pattern="^cb_dashboard$"),
+                MessageHandler(filters.TEXT & ~filters.COMMAND, wait_user_message),
             ],
             CONFIRM_USER_BROADCAST: [
                 CallbackQueryHandler(confirm_user_broadcast, pattern="^ub_confirm$"),
+                CallbackQueryHandler(cancel_user_broadcast_cb, pattern="^cb_dashboard$"),
             ],
         },
         fallbacks=[
-            CallbackQueryHandler(lambda u, c: ConversationHandler.END, pattern="^cb_dashboard$"),
+            CallbackQueryHandler(cancel_user_broadcast_cb, pattern="^cb_dashboard$"),
             MessageHandler(filters.COMMAND, cancel_user_broadcast),
         ],
         per_chat=True,
