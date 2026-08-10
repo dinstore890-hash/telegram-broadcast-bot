@@ -1,5 +1,6 @@
 .env
 data/*.db
+data/qris/
 sessions/
 logs/*.log
 __pycache__/
