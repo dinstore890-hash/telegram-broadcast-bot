@@ -268,9 +268,9 @@ async def cancel_order_callback(update: Update, context: ContextTypes.DEFAULT_TY
     await query.answer()
     context.user_data.clear()
     from handlers.start import _build_user_dashboard, _user_keyboard
-    text = await _build_user_dashboard(query.from_user.id)
+    text, active = await _build_user_dashboard(query.from_user.id)
     await query.message.delete()
-    await update.effective_chat.send_message(text, reply_markup=_user_keyboard())
+    await update.effective_chat.send_message(text, reply_markup=_user_keyboard(active))
     return ConversationHandler.END
 
 

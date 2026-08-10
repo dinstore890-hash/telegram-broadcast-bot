@@ -31,7 +31,13 @@ def _main_keyboard(is_broadcasting: bool = False) -> InlineKeyboardMarkup:
     ])
 
 
-def _user_keyboard() -> InlineKeyboardMarkup:
+def _user_keyboard(has_license: bool = False) -> InlineKeyboardMarkup:
+    if has_license:
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("📢 Mulai Broadcast", callback_data="cb_user_broadcast")],
+            [InlineKeyboardButton("🎫 Cek Lisensi",     callback_data="cb_lisensi")],
+            [InlineKeyboardButton("🛒 Perpanjang",      callback_data="cb_order")],
+        ])
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🛒 Order Sekarang", callback_data="cb_order")],
         [InlineKeyboardButton("📋 Cek Lisensi",   callback_data="cb_lisensi")],
@@ -51,7 +57,8 @@ async def _build_user_dashboard(user_id: int) -> str:
         greeting = "Selamat Malam"
 
     lic = db.get_license(user_id)
-    if lic and db.is_license_active(user_id):
+    active = lic and db.is_license_active(user_id)
+    if active:
         expired = lic["expired_at"][:10]
         lisensi_info = (
             f"│\n"
@@ -61,6 +68,7 @@ async def _build_user_dashboard(user_id: int) -> str:
             f"│  ⤷  Expired : {expired}\n"
         )
     else:
+        active = False
         lisensi_info = (
             f"│\n"
             f"│ 🔒 Belum punya lisensi\n"
@@ -75,7 +83,7 @@ async def _build_user_dashboard(user_id: int) -> str:
         f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
         f"│       𝐎𝐰𝐧𝐞𝐫 @GmailMarket67\n"
         f"╰─ Gunakan menu untuk mulai promosi instant 🤖"
-    )
+    ), active
 
 
 async def _build_dashboard(connected: bool) -> str:
