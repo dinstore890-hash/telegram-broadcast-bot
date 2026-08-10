@@ -293,7 +293,18 @@ def is_license_active(user_id: int) -> bool:
 def activate_license(user_id: int, paket: str, max_grup: int, durasi_hari: int) -> None:
     from datetime import timedelta
     now = datetime.now()
-    expired = (now + timedelta(days=durasi_hari)).isoformat()
+    existing = get_license(user_id)
+
+    if existing and datetime.fromisoformat(existing["expired_at"]) > now:
+        # Perpanjang: tambah durasi dari expired sekarang + tambah grup
+        base_expired = datetime.fromisoformat(existing["expired_at"])
+        new_expired = (base_expired + timedelta(days=durasi_hari)).isoformat()
+        new_max_grup = existing["max_grup"] + max_grup
+    else:
+        # Baru: mulai dari sekarang
+        new_expired = (now + timedelta(days=durasi_hari)).isoformat()
+        new_max_grup = max_grup
+
     with get_connection() as conn:
         conn.execute("""
             INSERT INTO licenses (user_id, paket, max_grup, durasi_hari, expired_at, activated_at)
@@ -304,7 +315,7 @@ def activate_license(user_id: int, paket: str, max_grup: int, durasi_hari: int) 
                 durasi_hari=excluded.durasi_hari,
                 expired_at=excluded.expired_at,
                 activated_at=excluded.activated_at
-        """, (user_id, paket, max_grup, durasi_hari, expired, now.isoformat()))
+        """, (user_id, paket, new_max_grup, durasi_hari, new_expired, now.isoformat()))
 
 
 def revoke_license(user_id: int) -> None:

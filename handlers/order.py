@@ -211,6 +211,22 @@ async def wait_bukti_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=_BACK_BTN,
     )
 
+    # Cek apakah user sudah punya lisensi aktif
+    existing_lic = db.get_license(user.id)
+    from datetime import datetime
+    if existing_lic and db.is_license_active(user.id):
+        expired = existing_lic["expired_at"][:10]
+        lic_info = (
+            f"\n⚠️ PERPANJANGAN\n"
+            f"📦 Paket lama  : {existing_lic['paket']}\n"
+            f"👥 Grup lama   : {existing_lic['max_grup']}\n"
+            f"📅 Expired lama: {expired}\n"
+            f"\n➕ Setelah konfirmasi:\n"
+            f"👥 Total Grup  : {existing_lic['max_grup'] + paket['max_grup']}\n"
+        )
+    else:
+        lic_info = ""
+
     # Forward bukti ke semua admin
     caption_admin = (
         f"🔔 ORDER BARU #{order_id}\n\n"
@@ -219,6 +235,7 @@ async def wait_bukti_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"📦 Paket    : {paket['label']}\n"
         f"⏱ Durasi   : {hari} Hari\n"
         f"💰 Total    : {_fmt_harga(harga)}\n"
+        f"{lic_info}"
     )
 
     keyboard_admin = InlineKeyboardMarkup([
@@ -305,18 +322,19 @@ async def admin_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     )
 
     # Notif ke user
-    from datetime import datetime, timedelta
-    expired = (datetime.now() + timedelta(days=order["durasi_hari"])).strftime("%d-%m-%Y %H:%M")
+    lic = db.get_license(order["user_id"])
+    expired = lic["expired_at"][:16].replace("T", " ") if lic else "-"
+    total_grup = lic["max_grup"] if lic else order["max_grup"]
     try:
         await context.bot.send_message(
             chat_id=order["user_id"],
             text=(
                 f"╭─ 🎉 PEMBAYARAN DIKONFIRMASI\n"
                 f"│\n"
-                f"│ Order ID : #{order_id}\n"
-                f"│ Paket    : {order['paket']}\n"
-                f"│ Durasi   : {order['durasi_hari']} Hari\n"
-                f"│ Expired  : {expired}\n"
+                f"│ Order ID   : #{order_id}\n"
+                f"│ Paket      : {order['paket']}\n"
+                f"│ Total Grup : {total_grup}\n"
+                f"│ Expired    : {expired}\n"
                 f"│\n"
                 f"│ Akses kamu sudah aktif!\n"
                 f"╰─ Ketik /start untuk mulai 🚀"
