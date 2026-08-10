@@ -180,8 +180,9 @@ async def confirm_broadcast_callback(update: Update, context: ContextTypes.DEFAU
         return ConversationHandler.END
 
     target_ids = [t["id"] for t in chosen]
+    test_prefix = "🧪 TEST MODE\n" if TEST_MODE else ""
     status_msg = await query.edit_message_text(
-        f"{'🧪 TEST MODE\n' if TEST_MODE else ''}📢 Memulai broadcast ke *{len(chosen)}* target...",
+        f"{test_prefix}📢 Memulai broadcast ke *{len(chosen)}* target...",
         parse_mode="Markdown",
     )
 
@@ -218,7 +219,7 @@ async def confirm_broadcast_callback(update: Update, context: ContextTypes.DEFAU
                     suffix += "\n\nGunakan tombol *▶️ Resume* atau *❌ Cancel*."
 
             text = (
-                f"{'🧪 TEST MODE\n' if TEST_MODE else ''}"
+                f"{test_prefix}"
                 f"📢 *Broadcast Progress*\n\n"
                 f"📨 Terkirim : {current}/{total}\n"
                 f"✅ Berhasil : {success}\n"
