@@ -55,6 +55,20 @@ def init_db() -> None:
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS users (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER UNIQUE NOT NULL,
+                username   TEXT,
+                first_name TEXT,
+                joined_at  TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS visits (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER NOT NULL,
+                visited_at TEXT NOT NULL
+            );
         """)
 
 
@@ -209,6 +223,33 @@ def set_setting(key: str, value: str) -> None:
             "INSERT INTO settings (key, value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
             (key, value),
         )
+
+
+# ── Users & Visits ───────────────────────────────────────────────────────────
+
+def track_user(user_id: int, username: str | None, first_name: str | None) -> None:
+    now = datetime.now().isoformat()
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT INTO users (user_id, username, first_name, joined_at) VALUES (?,?,?,?) ON CONFLICT(user_id) DO NOTHING",
+            (user_id, username, first_name, now),
+        )
+        conn.execute("INSERT INTO visits (user_id, visited_at) VALUES (?,?)", (user_id, now))
+
+
+def get_user_stats() -> dict:
+    today = datetime.now().date().isoformat()
+    with get_connection() as conn:
+        total_users   = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        new_users     = conn.execute("SELECT COUNT(*) FROM users WHERE joined_at LIKE ?", (f"{today}%",)).fetchone()[0]
+        total_visits  = conn.execute("SELECT COUNT(*) FROM visits").fetchone()[0]
+        new_visits    = conn.execute("SELECT COUNT(*) FROM visits WHERE visited_at LIKE ?", (f"{today}%",)).fetchone()[0]
+    return {
+        "total_users":  total_users,
+        "new_users":    new_users,
+        "total_visits": total_visits,
+        "new_visits":   new_visits,
+    }
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
