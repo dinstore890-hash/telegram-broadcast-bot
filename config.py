@@ -25,6 +25,9 @@ LOG_DIR: str = os.getenv("LOG_DIR", "logs")
 BROADCAST_DELAY: float = float(os.getenv("BROADCAST_DELAY", "3.0"))
 TEST_MODE: bool = os.getenv("TEST_MODE", "false").lower() == "true"
 
+# ── QRIS ────────────────────────────────────────────────────────────────────
+QRIS_FILE_ID: str = os.getenv("QRIS_FILE_ID", "")
+
 # ── Validasi wajib ────────────────────────────────────────────────────────────
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN tidak ditemukan di .env")

@@ -6,11 +6,12 @@ from telegram.ext import (
     ConversationHandler,
     CallbackQueryHandler,
     MessageHandler,
+    CommandHandler,
     filters,
 )
 
 import database as db
-from config import is_admin, ADMIN_IDS
+from config import is_admin, ADMIN_IDS, QRIS_FILE_ID
 
 logger = logging.getLogger(__name__)
 
@@ -133,7 +134,6 @@ async def pilih_durasi_callback(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data["ord_hari"]   = hari
     context.user_data["ord_harga"]  = harga
 
-    qris_path = os.path.join("data", "qris", "qris.jpg")
     caption = (
         f"╭─ 💳 INFORMASI PEMBAYARAN\n"
         f"│\n"
@@ -150,22 +150,34 @@ async def pilih_durasi_callback(update: Update, context: ContextTypes.DEFAULT_TY
         f"╰─ Kirim bukti bayar sekarang 👇"
     )
 
-    if os.path.exists(qris_path):
-        await query.message.delete()
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("❌ Batal", callback_data="cb_dashboard")]
+    ])
+
+    # Ambil file_id dari DB (prioritas) atau config
+    qris_id = db.get_setting("qris_file_id") or QRIS_FILE_ID
+
+    await query.message.delete()
+    if qris_id:
         await update.effective_chat.send_photo(
-            photo=open(qris_path, "rb"),
+            photo=qris_id,
             caption=caption,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ Batal", callback_data="cb_dashboard")]
-            ]),
+            reply_markup=keyboard,
         )
     else:
-        await query.edit_message_text(
-            caption + "\n│\n│ ⚠️ QRIS belum diupload admin.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ Batal", callback_data="cb_dashboard")]
-            ]),
-        )
+        # Fallback: cek file lokal
+        qris_path = os.path.join("data", "qris", "qris.jpg")
+        if os.path.exists(qris_path):
+            await update.effective_chat.send_photo(
+                photo=open(qris_path, "rb"),
+                caption=caption,
+                reply_markup=keyboard,
+            )
+        else:
+            await update.effective_chat.send_message(
+                caption + "\n│\n│ ⚠️ QRIS belum disetup admin.",
+                reply_markup=keyboard,
+            )
 
     return WAIT_BUKTI
 
@@ -349,6 +361,28 @@ async def admin_reject_callback(update: Update, context: ContextTypes.DEFAULT_TY
         )
     except Exception as e:
         logger.error(f"Gagal notif user {order['user_id']}: {e}")
+
+
+async def setqris_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin kirim foto QRIS → bot simpan file_id ke DB."""
+    if not is_admin(update.effective_user.id):
+        return
+    if not update.message.photo:
+        await update.message.reply_text(
+            "╭─ ⚠️ CARA PAKAI\n"
+            "│\n"
+            "│ Kirim foto QRIS dengan caption /setqris\n"
+            "╰─"
+        )
+        return
+    file_id = update.message.photo[-1].file_id
+    db.set_setting("qris_file_id", file_id)
+    await update.message.reply_text(
+        "╭─ ✅ QRIS BERHASIL DISIMPAN\n"
+        "│\n"
+        "│ QRIS sudah aktif dan siap digunakan.\n"
+        "╰─"
+    )
 
 
 def build_order_conversation() -> ConversationHandler:

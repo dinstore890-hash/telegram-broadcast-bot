@@ -27,7 +27,7 @@ from handlers.logs import logs_callback
 from handlers.order import (
     order_callback, pilih_paket_callback,
     admin_confirm_callback, admin_reject_callback,
-    build_order_conversation,
+    build_order_conversation, setqris_handler,
 )
 from handlers.start import lisensi_callback
 
@@ -74,6 +74,7 @@ def build_app():
     )
 
     app.add_handler(CommandHandler("start", start_handler))
+    app.add_handler(CommandHandler("setqris", setqris_handler))
 
     app.add_handler(build_login_conversation())
     app.add_handler(build_addtarget_conversation())
