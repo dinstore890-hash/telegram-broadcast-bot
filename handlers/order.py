@@ -83,7 +83,7 @@ async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await query.edit_message_text(
         "╭─ 🛒 ORDER JASEB\n"
         "│\n"
-        "│ 🇮🇩 PROMO JASEB BY @JASEBKAZEY\n"
+        "│ 🇮🇩 PROMO JASEB BY @GmailMarket67\n"
         "│ 🔥 Spesial HUT RI ke-81\n"
         "│\n"
         "│ Pilih paket yang kamu inginkan:\n"
