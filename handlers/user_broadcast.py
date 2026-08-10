@@ -126,20 +126,30 @@ async def _run_user_broadcast(message: str, targets, status_msg, user_id: int) -
     total = len(targets)
     last_edit = [0.0]
 
+    # Simpan ke DB
+    broadcast_id = db.create_broadcast(message, test_mode=False)
+    db.start_broadcast(broadcast_id)
+    for target in targets:
+        db.add_broadcast_target(broadcast_id, target["id"])
+
     for i, target in enumerate(targets):
         chat_id = target["chat_id"]
         title   = target["title"]
+        target_id = target["id"]
 
         if not await is_connected():
             failed += 1
+            db.update_broadcast_target(broadcast_id, target_id, "failed", "Tidak terkoneksi")
             continue
 
         try:
             await send_message_to(chat_id, message)
             success += 1
+            db.update_broadcast_target(broadcast_id, target_id, "success")
             logger.info(f"[USER {user_id}] Broadcast ke {title}: berhasil")
         except Exception as e:
             failed += 1
+            db.update_broadcast_target(broadcast_id, target_id, "failed", str(e))
             logger.error(f"[USER {user_id}] Broadcast ke {title}: {e}")
 
         import time
@@ -158,6 +168,8 @@ async def _run_user_broadcast(message: str, targets, status_msg, user_id: int) -
                 pass
 
         await rate.wait()
+
+    db.finish_broadcast(broadcast_id, "completed")
 
     try:
         await status_msg.edit_text(
