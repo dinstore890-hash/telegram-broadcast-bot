@@ -36,24 +36,45 @@ async def _build_dashboard(connected: bool) -> str:
     from services.broadcast_service import get_state
     state = get_state()
 
+    from datetime import datetime
+    hour = datetime.now().hour
+    if hour < 11:
+        greeting = "Selamat Pagi"
+    elif hour < 15:
+        greeting = "Selamat Siang"
+    elif hour < 18:
+        greeting = "Selamat Sore"
+    else:
+        greeting = "Selamat Malam"
+
     account_status = "🟢 Connected" if connected else "🔴 Disconnected"
-    test_badge     = "  🧪 TEST MODE AKTIF" if TEST_MODE else ""
+    test_badge = "  🧪 TEST MODE AKTIF" if TEST_MODE else ""
+
     broadcast_info = ""
     if state["running"]:
         broadcast_info = (
-            f"\n⚡ Broadcast berjalan: {state['current']}/{state['total']}"
-            f"  ✅{state['success']} ❌{state['failed']}"
+            f"│\n"
+            f"│ ⚡ Broadcast berjalan\n"
+            f"│  ⤷  Progress : {state['current']}/{state['total']}\n"
+            f"│  ⤷  Berhasil : {state['success']}\n"
+            f"│  ⤷  Gagal    : {state['failed']}\n"
         )
 
     return (
-        f"🤖 *TELEGRAM BROADCAST*{test_badge}\n"
-        f"━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"👤 Account : {account_status}\n"
-        f"📋 Total Target  : {stats['total_targets']}\n"
-        f"🟢 Active Target : {stats['active_targets']}\n"
-        f"📨 Sent    : {stats['total_success']}\n"
-        f"❌ Failed  : {stats['total_failed']}"
+        f"╭─ 💎 Gmail Market JASNEB 💎{test_badge}\n"
+        f"│\n"
+        f"│ Halo, {greeting} 👋\n"
+        f"│\n"
+        f"│ ⭐ 𝐀𝐊𝐓𝐈𝐕𝐈𝐓𝐀𝐒 𝐁𝐎𝐓\n"
+        f"│  ⤷  Total Target  : {stats['total_targets']}\n"
+        f"│  ⤷  Target Aktif  : {stats['active_targets']}\n"
+        f"│  ⤷  Total Terkirim: {stats['total_success']}\n"
+        f"│  ⤷  Total Gagal   : {stats['total_failed']}\n"
         f"{broadcast_info}"
+        f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
+        f"│  📡 Akun : {account_status}\n"
+        f"│       𝐎𝐰𝐧𝐞𝐫 @GmailMarket67\n"
+        f"╰─ Gunakan menu untuk mulai promosi instant 🤖"
     )
 
 
