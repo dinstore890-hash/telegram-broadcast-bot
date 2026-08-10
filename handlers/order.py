@@ -263,6 +263,17 @@ async def cancel_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return ConversationHandler.END
 
 
+async def cancel_order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    context.user_data.clear()
+    from handlers.start import _build_user_dashboard, _user_keyboard
+    text = await _build_user_dashboard(query.from_user.id)
+    await query.message.delete()
+    await update.effective_chat.send_message(text, reply_markup=_user_keyboard())
+    return ConversationHandler.END
+
+
 # ── Admin: Konfirmasi / Tolak ─────────────────────────────────────────────────
 
 async def admin_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -392,13 +403,17 @@ def build_order_conversation() -> ConversationHandler:
         ],
         states={
             WAIT_BUKTI: [
+                CallbackQueryHandler(cancel_order_callback, pattern="^cb_dashboard$"),
                 MessageHandler(
                     (filters.PHOTO | filters.Document.ALL | filters.TEXT) & ~filters.COMMAND,
                     wait_bukti_handler,
                 )
             ],
         },
-        fallbacks=[MessageHandler(filters.COMMAND, cancel_order)],
+        fallbacks=[
+            CallbackQueryHandler(cancel_order_callback, pattern="^cb_dashboard$"),
+            MessageHandler(filters.COMMAND, cancel_order),
+        ],
         per_chat=True,
         per_user=True,
         per_message=False,
