@@ -24,6 +24,12 @@ from handlers.broadcast import (
 )
 from handlers.stats import stats_callback
 from handlers.logs import logs_callback
+from handlers.order import (
+    order_callback, pilih_paket_callback,
+    admin_confirm_callback, admin_reject_callback,
+    build_order_conversation,
+)
+from handlers.start import lisensi_callback
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -40,11 +46,10 @@ logger = logging.getLogger(__name__)
 
 async def post_init(app) -> None:
     """Jalankan setelah bot siap: connect Telethon jika session ada."""
-    from telegram import MenuButtonCommands, BotCommand
+    from telegram import BotCommand
     await app.bot.set_my_commands([
         BotCommand("start", "🚀 Buka Dashboard"),
     ])
-    await app.bot.set_chat_menu_button(menu_button=MenuButtonCommands())
 
     ok = await telegram_client.connect()
     if ok:
@@ -73,6 +78,7 @@ def build_app():
     app.add_handler(build_login_conversation())
     app.add_handler(build_addtarget_conversation())
     app.add_handler(build_broadcast_conversation())
+    app.add_handler(build_order_conversation())
 
     app.add_handler(CallbackQueryHandler(dashboard_callback,      pattern="^cb_dashboard$"))
     app.add_handler(CallbackQueryHandler(account_callback,        pattern="^cb_account$"))
@@ -89,6 +95,11 @@ def build_app():
     app.add_handler(CallbackQueryHandler(stats_callback,          pattern="^cb_stats$"))
     app.add_handler(CallbackQueryHandler(logs_callback,           pattern="^cb_logs$"))
     app.add_handler(CallbackQueryHandler(settings_callback,       pattern="^cb_settings$"))
+    app.add_handler(CallbackQueryHandler(order_callback,          pattern="^cb_order$"))
+    app.add_handler(CallbackQueryHandler(pilih_paket_callback,    pattern="^ord_paket_"))
+    app.add_handler(CallbackQueryHandler(lisensi_callback,        pattern="^cb_lisensi$"))
+    app.add_handler(CallbackQueryHandler(admin_confirm_callback,  pattern="^adm_confirm_"))
+    app.add_handler(CallbackQueryHandler(admin_reject_callback,   pattern="^adm_reject_"))
 
     return app
 

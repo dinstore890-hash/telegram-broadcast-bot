@@ -31,6 +31,53 @@ def _main_keyboard(is_broadcasting: bool = False) -> InlineKeyboardMarkup:
     ])
 
 
+def _user_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🛒 Order Sekarang", callback_data="cb_order")],
+        [InlineKeyboardButton("📋 Cek Lisensi",   callback_data="cb_lisensi")],
+    ])
+
+
+async def _build_user_dashboard(user_id: int) -> str:
+    from datetime import datetime
+    hour = datetime.now().hour
+    if hour < 11:
+        greeting = "Selamat Pagi"
+    elif hour < 15:
+        greeting = "Selamat Siang"
+    elif hour < 18:
+        greeting = "Selamat Sore"
+    else:
+        greeting = "Selamat Malam"
+
+    lic = db.get_license(user_id)
+    if lic and db.is_license_active(user_id):
+        expired = lic["expired_at"][:10]
+        lisensi_info = (
+            f"│\n"
+            f"│ 🎫 LISENSI AKTIF\n"
+            f"│  ⤷  Paket   : {lic['paket']}\n"
+            f"│  ⤷  Max Grup: {lic['max_grup']}\n"
+            f"│  ⤷  Expired : {expired}\n"
+        )
+    else:
+        lisensi_info = (
+            f"│\n"
+            f"│ 🔒 Belum punya lisensi\n"
+            f"│  ⤷  Order sekarang untuk mulai!\n"
+        )
+
+    return (
+        f"╭─ 💎 Gmail Market JASNEB 💎\n"
+        f"│\n"
+        f"│ Halo, {greeting} 👋\n"
+        f"{lisensi_info}"
+        f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
+        f"│       𝐎𝐰𝐧𝐞𝐫 @GmailMarket67\n"
+        f"╰─ Gunakan menu untuk mulai promosi instant 🤖"
+    )
+
+
 async def _build_dashboard(connected: bool) -> str:
     stats = db.get_stats()
     user_stats = db.get_user_stats()
@@ -136,24 +183,67 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         text = await _build_admin_dashboard(connected)
         await update.message.reply_text(text, reply_markup=_main_keyboard(is_running()))
     else:
-        text = await _build_dashboard(connected)
-        await update.message.reply_text(text)
+        text = await _build_user_dashboard(user.id)
+        await update.message.reply_text(text, reply_markup=_user_keyboard())
 
 
 async def dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
-    if not is_admin(query.from_user.id):
-        await query.answer("⛔ Akses ditolak.", show_alert=True)
-        return
 
-    from services.broadcast_service import is_running
-    connected = await telegram_client.is_connected()
-    text = await _build_admin_dashboard(connected)
-    try:
-        await query.edit_message_text(text, reply_markup=_main_keyboard(is_running()))
-    except Exception:
-        pass
+    if is_admin(query.from_user.id):
+        from services.broadcast_service import is_running
+        connected = await telegram_client.is_connected()
+        text = await _build_admin_dashboard(connected)
+        try:
+            await query.edit_message_text(text, reply_markup=_main_keyboard(is_running()))
+        except Exception:
+            pass
+    else:
+        text = await _build_user_dashboard(query.from_user.id)
+        try:
+            await query.edit_message_text(text, reply_markup=_user_keyboard())
+        except Exception:
+            pass
+
+
+async def lisensi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    lic = db.get_license(user_id)
+
+    if lic and db.is_license_active(user_id):
+        from datetime import datetime
+        expired = lic["expired_at"][:16].replace("T", " ")
+        activated = lic["activated_at"][:10]
+        text = (
+            f"╭─ 🎫 LISENSI KAMU\n"
+            f"│\n"
+            f"│  ⤷  Paket    : {lic['paket']}\n"
+            f"│  ⤷  Max Grup : {lic['max_grup']}\n"
+            f"│  ⤷  Durasi   : {lic['durasi_hari']} Hari\n"
+            f"│  ⤷  Aktif    : {activated}\n"
+            f"│  ⤷  Expired  : {expired}\n"
+            f"│\n"
+            f"╰─ Lisensi kamu masih aktif ✅"
+        )
+    else:
+        text = (
+            "╭─ 🔒 LISENSI TIDAK AKTIF\n"
+            "│\n"
+            "│ Kamu belum punya lisensi aktif.\n"
+            "│ Order sekarang untuk mulai!\n"
+            "╰─"
+        )
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🛒 Order Sekarang", callback_data="cb_order")],
+            [InlineKeyboardButton("⬅️ Kembali",        callback_data="cb_dashboard")],
+        ]),
+    )
 
 
 async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

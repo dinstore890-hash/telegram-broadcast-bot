@@ -1,0 +1,372 @@
+import os
+import logging
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import (
+    ContextTypes,
+    ConversationHandler,
+    CallbackQueryHandler,
+    MessageHandler,
+    filters,
+)
+
+import database as db
+from config import is_admin, ADMIN_IDS
+
+logger = logging.getLogger(__name__)
+
+WAIT_BUKTI = 30
+
+_BACK_BTN = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
+])
+
+# ── Paket & Harga ─────────────────────────────────────────────────────────────
+
+PAKET = {
+    "basic_20":   {"label": "JASEB BASIC 20 Grup",   "max_grup": 20},
+    "basic_30":   {"label": "JASEB BASIC 30 Grup",   "max_grup": 30},
+    "basic_50":   {"label": "JASEB BASIC 50 Grup",   "max_grup": 50},
+    "forward_20": {"label": "JASEB FORWARD 20 Grup", "max_grup": 20},
+    "forward_30": {"label": "JASEB FORWARD 30 Grup", "max_grup": 30},
+    "forward_50": {"label": "JASEB FORWARD 50 Grup", "max_grup": 50},
+}
+
+HARGA = {
+    "basic_20":   {3: 15000, 5: 20000, 7: 25000, 10: 30000, 15: 35000, 30: 60000},
+    "basic_30":   {3: 20000, 5: 25000, 7: 35000, 15: 50000, 30: 90000},
+    "basic_50":   {3: 25000, 5: 40000, 7: 55000, 15: 70000, 30: 135000},
+    "forward_20": {3: 20000, 5: 28000, 7: 38000, 15: 52000, 30: 90000},
+    "forward_30": {3: 35000, 5: 40000, 7: 55000, 15: 70000, 30: 130000},
+    "forward_50": {3: 40000, 5: 55000, 7: 80000, 15: 95000, 30: 270000},
+}
+
+
+def _fmt_harga(harga: int) -> str:
+    return f"Rp. {harga:,}".replace(",", ".")
+
+
+def _paket_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📦 BASIC 20 Grup",   callback_data="ord_paket_basic_20"),
+         InlineKeyboardButton("📦 BASIC 30 Grup",   callback_data="ord_paket_basic_30")],
+        [InlineKeyboardButton("📦 BASIC 50 Grup",   callback_data="ord_paket_basic_50")],
+        [InlineKeyboardButton("🚀 FORWARD 20 Grup", callback_data="ord_paket_forward_20"),
+         InlineKeyboardButton("🚀 FORWARD 30 Grup", callback_data="ord_paket_forward_30")],
+        [InlineKeyboardButton("🚀 FORWARD 50 Grup", callback_data="ord_paket_forward_50")],
+        [InlineKeyboardButton("⬅️ Kembali",          callback_data="cb_dashboard")],
+    ])
+
+
+def _durasi_keyboard(paket_key: str) -> InlineKeyboardMarkup:
+    durasi_list = list(HARGA[paket_key].items())
+    buttons = []
+    row = []
+    for i, (hari, harga) in enumerate(durasi_list):
+        row.append(InlineKeyboardButton(
+            f"{hari} Hari • {_fmt_harga(harga)}",
+            callback_data=f"ord_durasi_{paket_key}_{hari}",
+        ))
+        if len(row) == 2 or i == len(durasi_list) - 1:
+            buttons.append(row)
+            row = []
+    buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_order")])
+    return InlineKeyboardMarkup(buttons)
+
+
+# ── Handlers ──────────────────────────────────────────────────────────────────
+
+async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    await query.edit_message_text(
+        "╭─ 🛒 ORDER JASEB\n"
+        "│\n"
+        "│ 🇮🇩 PROMO JASEB BY @JASEBKAZEY\n"
+        "│ 🔥 Spesial HUT RI ke-81\n"
+        "│\n"
+        "│ Pilih paket yang kamu inginkan:\n"
+        "│\n"
+        "│ 📦 BASIC  = Broadcast pesan teks\n"
+        "│ 🚀 FORWARD = Broadcast dengan forward\n"
+        "│\n"
+        "╰─ Pilih paket di bawah 👇",
+        reply_markup=_paket_keyboard(),
+    )
+
+
+async def pilih_paket_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    paket_key = query.data.replace("ord_paket_", "")
+    paket = PAKET[paket_key]
+    context.user_data["ord_paket"] = paket_key
+
+    harga_list = HARGA[paket_key]
+    lines = "\n".join(
+        f"│  ✦ {hari} Hari ➜ {_fmt_harga(harga)}"
+        for hari, harga in harga_list.items()
+    )
+
+    await query.edit_message_text(
+        f"╭─ 📦 {paket['label']}\n"
+        f"│\n"
+        f"{lines}\n"
+        f"│\n"
+        f"╰─ Pilih durasi di bawah 👇",
+        reply_markup=_durasi_keyboard(paket_key),
+    )
+
+
+async def pilih_durasi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+
+    parts = query.data.replace("ord_durasi_", "").rsplit("_", 1)
+    paket_key = parts[0]
+    hari = int(parts[1])
+    harga = HARGA[paket_key][hari]
+    paket = PAKET[paket_key]
+
+    context.user_data["ord_paket"]  = paket_key
+    context.user_data["ord_hari"]   = hari
+    context.user_data["ord_harga"]  = harga
+
+    qris_path = os.path.join("data", "qris", "qris.jpg")
+    caption = (
+        f"╭─ 💳 INFORMASI PEMBAYARAN\n"
+        f"│\n"
+        f"│ 📦 Paket  : {paket['label']}\n"
+        f"│ ⏱ Durasi  : {hari} Hari\n"
+        f"│ 💰 Total  : {_fmt_harga(harga)}\n"
+        f"│\n"
+        f"│ Scan QRIS di atas untuk bayar.\n"
+        f"│\n"
+        f"│ Setelah bayar, kirim:\n"
+        f"│  1️⃣ Screenshot bukti transfer\n"
+        f"│  2️⃣ Username Telegram kamu\n"
+        f"│\n"
+        f"╰─ Kirim bukti bayar sekarang 👇"
+    )
+
+    if os.path.exists(qris_path):
+        await query.message.delete()
+        await update.effective_chat.send_photo(
+            photo=open(qris_path, "rb"),
+            caption=caption,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Batal", callback_data="cb_dashboard")]
+            ]),
+        )
+    else:
+        await query.edit_message_text(
+            caption + "\n│\n│ ⚠️ QRIS belum diupload admin.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Batal", callback_data="cb_dashboard")]
+            ]),
+        )
+
+    return WAIT_BUKTI
+
+
+async def wait_bukti_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = update.effective_user
+    paket_key = context.user_data.get("ord_paket")
+    hari      = context.user_data.get("ord_hari")
+    harga     = context.user_data.get("ord_harga")
+
+    if not paket_key or not hari:
+        await update.message.reply_text("⚠️ Sesi order tidak ditemukan. Mulai ulang.", reply_markup=_BACK_BTN)
+        return ConversationHandler.END
+
+    paket = PAKET[paket_key]
+
+    # Simpan order ke DB
+    order_id = db.create_order(
+        user_id=user.id,
+        username=user.username,
+        first_name=user.first_name,
+        paket=paket["label"],
+        max_grup=paket["max_grup"],
+        durasi_hari=hari,
+        harga=harga,
+    )
+
+    # Konfirmasi ke user
+    await update.message.reply_text(
+        f"╭─ ✅ BUKTI DITERIMA\n"
+        f"│\n"
+        f"│ Order ID : #{order_id}\n"
+        f"│ Paket    : {paket['label']}\n"
+        f"│ Durasi   : {hari} Hari\n"
+        f"│ Total    : {_fmt_harga(harga)}\n"
+        f"│\n"
+        f"│ Bukti kamu sedang diverifikasi admin.\n"
+        f"│ Tunggu konfirmasi dalam 1x24 jam.\n"
+        f"╰─ Terima kasih! 🙏",
+        reply_markup=_BACK_BTN,
+    )
+
+    # Forward bukti ke semua admin
+    caption_admin = (
+        f"🔔 ORDER BARU #{order_id}\n\n"
+        f"👤 User     : {user.first_name} (@{user.username or '-'})\n"
+        f"🆔 ID       : {user.id}\n"
+        f"📦 Paket    : {paket['label']}\n"
+        f"⏱ Durasi   : {hari} Hari\n"
+        f"💰 Total    : {_fmt_harga(harga)}\n"
+    )
+
+    keyboard_admin = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Konfirmasi", callback_data=f"adm_confirm_{order_id}"),
+            InlineKeyboardButton("❌ Tolak",      callback_data=f"adm_reject_{order_id}"),
+        ]
+    ])
+
+    for admin_id in ADMIN_IDS:
+        try:
+            if update.message.photo:
+                await context.bot.send_photo(
+                    chat_id=admin_id,
+                    photo=update.message.photo[-1].file_id,
+                    caption=caption_admin,
+                    reply_markup=keyboard_admin,
+                )
+            elif update.message.document:
+                await context.bot.send_document(
+                    chat_id=admin_id,
+                    document=update.message.document.file_id,
+                    caption=caption_admin,
+                    reply_markup=keyboard_admin,
+                )
+            else:
+                await context.bot.send_message(
+                    chat_id=admin_id,
+                    text=caption_admin + f"\n📝 Pesan: {update.message.text or '-'}",
+                    reply_markup=keyboard_admin,
+                )
+        except Exception as e:
+            logger.error(f"Gagal forward ke admin {admin_id}: {e}")
+
+    context.user_data.clear()
+    return ConversationHandler.END
+
+
+async def cancel_order(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data.clear()
+    await update.message.reply_text("❌ Order dibatalkan.", reply_markup=_BACK_BTN)
+    return ConversationHandler.END
+
+
+# ── Admin: Konfirmasi / Tolak ─────────────────────────────────────────────────
+
+async def admin_confirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    order_id = int(query.data.replace("adm_confirm_", ""))
+    order = db.get_order(order_id)
+    if not order:
+        await query.answer("⚠️ Order tidak ditemukan.", show_alert=True)
+        return
+
+    db.confirm_order(order_id)
+    db.activate_license(
+        user_id=order["user_id"],
+        paket=order["paket"],
+        max_grup=order["max_grup"],
+        durasi_hari=order["durasi_hari"],
+    )
+    db.add_log("INFO", f"Order #{order_id} dikonfirmasi untuk user {order['user_id']}")
+
+    # Edit pesan admin
+    await query.edit_message_caption(
+        caption=query.message.caption + "\n\n✅ DIKONFIRMASI",
+    ) if query.message.caption else await query.edit_message_text(
+        query.message.text + "\n\n✅ DIKONFIRMASI"
+    )
+
+    # Notif ke user
+    from datetime import datetime, timedelta
+    expired = (datetime.now() + timedelta(days=order["durasi_hari"])).strftime("%d-%m-%Y %H:%M")
+    try:
+        await context.bot.send_message(
+            chat_id=order["user_id"],
+            text=(
+                f"╭─ 🎉 PEMBAYARAN DIKONFIRMASI\n"
+                f"│\n"
+                f"│ Order ID : #{order_id}\n"
+                f"│ Paket    : {order['paket']}\n"
+                f"│ Durasi   : {order['durasi_hari']} Hari\n"
+                f"│ Expired  : {expired}\n"
+                f"│\n"
+                f"│ Akses kamu sudah aktif!\n"
+                f"╰─ Ketik /start untuk mulai 🚀"
+            ),
+        )
+    except Exception as e:
+        logger.error(f"Gagal notif user {order['user_id']}: {e}")
+
+
+async def admin_reject_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    order_id = int(query.data.replace("adm_reject_", ""))
+    order = db.get_order(order_id)
+    if not order:
+        await query.answer("⚠️ Order tidak ditemukan.", show_alert=True)
+        return
+
+    db.reject_order(order_id)
+    db.add_log("INFO", f"Order #{order_id} ditolak untuk user {order['user_id']}")
+
+    await query.edit_message_caption(
+        caption=query.message.caption + "\n\n❌ DITOLAK",
+    ) if query.message.caption else await query.edit_message_text(
+        query.message.text + "\n\n❌ DITOLAK"
+    )
+
+    try:
+        await context.bot.send_message(
+            chat_id=order["user_id"],
+            text=(
+                f"╭─ ❌ PEMBAYARAN DITOLAK\n"
+                f"│\n"
+                f"│ Order ID : #{order_id}\n"
+                f"│\n"
+                f"│ Bukti bayar kamu tidak valid.\n"
+                f"│ Silakan order ulang atau hubungi\n"
+                f"│ admin @qmaggnum\n"
+                f"╰─"
+            ),
+        )
+    except Exception as e:
+        logger.error(f"Gagal notif user {order['user_id']}: {e}")
+
+
+def build_order_conversation() -> ConversationHandler:
+    return ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(pilih_durasi_callback, pattern="^ord_durasi_"),
+        ],
+        states={
+            WAIT_BUKTI: [
+                MessageHandler(
+                    (filters.PHOTO | filters.Document.ALL | filters.TEXT) & ~filters.COMMAND,
+                    wait_bukti_handler,
+                )
+            ],
+        },
+        fallbacks=[MessageHandler(filters.COMMAND, cancel_order)],
+        per_chat=True,
+        per_user=True,
+        per_message=False,
+        allow_reentry=True,
+    )

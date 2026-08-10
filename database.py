@@ -56,6 +56,30 @@ def init_db() -> None:
                 value TEXT NOT NULL
             );
 
+            CREATE TABLE IF NOT EXISTS licenses (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER UNIQUE NOT NULL,
+                paket       TEXT NOT NULL,
+                max_grup    INTEGER NOT NULL,
+                durasi_hari INTEGER NOT NULL,
+                expired_at  TEXT NOT NULL,
+                activated_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS orders (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                username    TEXT,
+                first_name  TEXT,
+                paket       TEXT NOT NULL,
+                max_grup    INTEGER NOT NULL,
+                durasi_hari INTEGER NOT NULL,
+                harga       INTEGER NOT NULL,
+                status      TEXT DEFAULT 'pending',
+                created_at  TEXT NOT NULL,
+                confirmed_at TEXT
+            );
+
             CREATE TABLE IF NOT EXISTS users (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id    INTEGER UNIQUE NOT NULL,
@@ -250,6 +274,79 @@ def get_user_stats() -> dict:
         "total_visits": total_visits,
         "new_visits":   new_visits,
     }
+
+
+# ── Licenses ─────────────────────────────────────────────────────────────────
+
+def get_license(user_id: int) -> sqlite3.Row | None:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM licenses WHERE user_id = ?", (user_id,)).fetchone()
+
+
+def is_license_active(user_id: int) -> bool:
+    row = get_license(user_id)
+    if not row:
+        return False
+    return datetime.now().isoformat() < row["expired_at"]
+
+
+def activate_license(user_id: int, paket: str, max_grup: int, durasi_hari: int) -> None:
+    from datetime import timedelta
+    now = datetime.now()
+    expired = (now + timedelta(days=durasi_hari)).isoformat()
+    with get_connection() as conn:
+        conn.execute("""
+            INSERT INTO licenses (user_id, paket, max_grup, durasi_hari, expired_at, activated_at)
+            VALUES (?,?,?,?,?,?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                paket=excluded.paket,
+                max_grup=excluded.max_grup,
+                durasi_hari=excluded.durasi_hari,
+                expired_at=excluded.expired_at,
+                activated_at=excluded.activated_at
+        """, (user_id, paket, max_grup, durasi_hari, expired, now.isoformat()))
+
+
+def revoke_license(user_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM licenses WHERE user_id = ?", (user_id,))
+
+
+# ── Orders ────────────────────────────────────────────────────────────────────
+
+def create_order(user_id: int, username: str | None, first_name: str | None,
+                 paket: str, max_grup: int, durasi_hari: int, harga: int) -> int:
+    with get_connection() as conn:
+        cur = conn.execute("""
+            INSERT INTO orders (user_id, username, first_name, paket, max_grup, durasi_hari, harga, status, created_at)
+            VALUES (?,?,?,?,?,?,?,'pending',?)
+        """, (user_id, username, first_name, paket, max_grup, durasi_hari, harga, datetime.now().isoformat()))
+        return cur.lastrowid
+
+
+def get_order(order_id: int) -> sqlite3.Row | None:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
+
+
+def get_pending_orders() -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM orders WHERE status='pending' ORDER BY created_at DESC"
+        ).fetchall()
+
+
+def confirm_order(order_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE orders SET status='confirmed', confirmed_at=? WHERE id=?",
+            (datetime.now().isoformat(), order_id),
+        )
+
+
+def reject_order(order_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE orders SET status='rejected' WHERE id=?", (order_id,))
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
