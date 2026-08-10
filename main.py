@@ -51,6 +51,7 @@ async def post_init(app) -> None:
     from telegram import BotCommand
     await app.bot.set_my_commands([
         BotCommand("start", "🚀 Buka Dashboard"),
+        BotCommand("refresh", "🔄 Refresh Dashboard"),
     ])
     ok = await telegram_client.connect()
     if ok:
@@ -75,6 +76,7 @@ def build_app():
     )
 
     app.add_handler(CommandHandler("start", start_handler))
+    app.add_handler(CommandHandler("refresh", start_handler))
     app.add_handler(CommandHandler("setqris", setqris_handler))
 
     app.add_handler(build_login_conversation())
