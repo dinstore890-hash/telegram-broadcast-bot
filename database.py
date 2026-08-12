@@ -80,6 +80,16 @@ def init_db() -> None:
                 confirmed_at TEXT
             );
 
+            CREATE TABLE IF NOT EXISTS accounts (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                phone        TEXT UNIQUE NOT NULL,
+                session_name TEXT UNIQUE NOT NULL,
+                name         TEXT,
+                username     TEXT,
+                is_active    INTEGER DEFAULT 1,
+                added_at     TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS users (
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id    INTEGER UNIQUE NOT NULL,
@@ -358,6 +368,54 @@ def confirm_order(order_id: int) -> None:
 def reject_order(order_id: int) -> None:
     with get_connection() as conn:
         conn.execute("UPDATE orders SET status='rejected' WHERE id=?", (order_id,))
+
+
+# ── Accounts ─────────────────────────────────────────────────────────────────
+
+def add_account(phone: str, session_name: str, name: str = "", username: str = "") -> bool:
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO accounts (phone, session_name, name, username, added_at) VALUES (?,?,?,?,?)",
+                (phone, session_name, name, username, datetime.now().isoformat()),
+            )
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+
+def get_all_accounts() -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM accounts ORDER BY added_at ASC").fetchall()
+
+
+def get_active_accounts() -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM accounts WHERE is_active=1").fetchall()
+
+
+def get_account_by_phone(phone: str) -> sqlite3.Row | None:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM accounts WHERE phone=?", (phone,)).fetchone()
+
+
+def update_account_info(phone: str, name: str, username: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE accounts SET name=?, username=? WHERE phone=?",
+            (name, username, phone),
+        )
+
+
+def set_account_active(phone: str, is_active: int) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE accounts SET is_active=? WHERE phone=?", (is_active, phone))
+
+
+def delete_account(phone: str) -> bool:
+    with get_connection() as conn:
+        cur = conn.execute("DELETE FROM accounts WHERE phone=?", (phone,))
+        return cur.rowcount > 0
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────

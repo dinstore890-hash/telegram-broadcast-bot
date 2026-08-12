@@ -9,34 +9,86 @@ from config import API_ID, API_HASH, PHONE_NUMBER, SESSION_DIR
 
 logger = logging.getLogger(__name__)
 
-_client: TelegramClient | None = None
+# Multi-client: phone -> TelegramClient
+_clients: dict[str, TelegramClient] = {}
+
+# Untuk backward-compat: akun utama dari .env
+_PRIMARY_PHONE = PHONE_NUMBER
 
 
-def get_client() -> TelegramClient:
-    global _client
-    if _client is None:
-        os.makedirs(SESSION_DIR, exist_ok=True)
-        # Pakai string session jika tersedia, fallback ke file session
+def _make_client(session_name: str) -> TelegramClient:
+    os.makedirs(SESSION_DIR, exist_ok=True)
+    session_path = os.path.join(SESSION_DIR, session_name)
+    return TelegramClient(session_path, API_ID, API_HASH)
+
+
+def get_client(phone: str | None = None) -> TelegramClient:
+    """Ambil client berdasarkan nomor HP. Jika None, ambil client pertama yang aktif."""
+    if phone:
+        if phone not in _clients:
+            import database as db
+            acc = db.get_account_by_phone(phone)
+            session_name = acc["session_name"] if acc else phone.replace("+", "")
+            _clients[phone] = _make_client(session_name)
+        return _clients[phone]
+
+    # Ambil client pertama yang tersedia
+    if _clients:
+        return next(iter(_clients.values()))
+
+    # Fallback: akun utama dari .env
+    if _PRIMARY_PHONE not in _clients:
         string_session = os.getenv("STRING_SESSION", "").strip()
         if string_session:
-            _client = TelegramClient(StringSession(string_session), API_ID, API_HASH)
+            _clients[_PRIMARY_PHONE] = TelegramClient(StringSession(string_session), API_ID, API_HASH)
         else:
-            session_path = os.path.join(SESSION_DIR, "account")
-            _client = TelegramClient(session_path, API_ID, API_HASH)
-    return _client
+            _clients[_PRIMARY_PHONE] = _make_client("account")
+    return _clients[_PRIMARY_PHONE]
 
 
-async def is_connected() -> bool:
-    client = get_client()
+def get_all_clients() -> dict[str, TelegramClient]:
+    return _clients
+
+
+async def load_accounts_from_db() -> None:
+    """Load semua akun dari DB ke _clients saat startup."""
+    import database as db
+    accounts = db.get_active_accounts()
+    for acc in accounts:
+        phone = acc["phone"]
+        if phone not in _clients:
+            _clients[phone] = _make_client(acc["session_name"])
+    logger.info(f"Loaded {len(accounts)} akun dari DB")
+
+
+async def connect_all() -> list[str]:
+    """Connect semua client. Return list phone yang berhasil connect."""
+    connected = []
+    for phone, client in list(_clients.items()):
+        try:
+            if not client.is_connected():
+                await client.connect()
+            if await client.is_user_authorized():
+                connected.append(phone)
+                logger.info(f"Connected: {phone}")
+            else:
+                logger.warning(f"Not authorized: {phone}")
+        except Exception as e:
+            logger.error(f"connect_all error [{phone}]: {e}")
+    return connected
+
+
+async def is_connected(phone: str | None = None) -> bool:
+    client = get_client(phone)
     if not client.is_connected():
         return False
     return await client.is_user_authorized()
 
 
-async def get_me() -> dict | None:
+async def get_me(phone: str | None = None) -> dict | None:
     try:
-        client = get_client()
-        if not await is_connected():
+        client = get_client(phone)
+        if not await is_connected(phone):
             return None
         me = await client.get_me()
         return {
@@ -50,9 +102,32 @@ async def get_me() -> dict | None:
         return None
 
 
-async def connect() -> bool:
+async def get_all_me() -> list[dict]:
+    """Ambil info semua akun yang terkoneksi."""
+    result = []
+    for phone, client in list(_clients.items()):
+        try:
+            if not client.is_connected():
+                await client.connect()
+            if await client.is_user_authorized():
+                me = await client.get_me()
+                result.append({
+                    "phone":    phone,
+                    "id":       me.id,
+                    "username": me.username or "",
+                    "name":     f"{me.first_name or ''} {me.last_name or ''}".strip(),
+                    "connected": True,
+                })
+            else:
+                result.append({"phone": phone, "connected": False})
+        except Exception as e:
+            result.append({"phone": phone, "connected": False, "error": str(e)})
+    return result
+
+
+async def connect(phone: str | None = None) -> bool:
     try:
-        client = get_client()
+        client = get_client(phone)
         if not client.is_connected():
             await client.connect()
         return await client.is_user_authorized()
@@ -64,7 +139,10 @@ async def connect() -> bool:
 async def send_code(phone: str) -> str | None:
     """Kirim OTP ke nomor HP. Return phone_code_hash."""
     try:
-        client = get_client()
+        # Buat client baru untuk akun baru
+        if phone not in _clients:
+            _clients[phone] = _make_client(phone.replace("+", ""))
+        client = _clients[phone]
         if not client.is_connected():
             await client.connect()
         result = await client.send_code_request(phone)
@@ -75,12 +153,8 @@ async def send_code(phone: str) -> str | None:
 
 
 async def sign_in(phone: str, code: str, phone_code_hash: str) -> tuple[bool, bool, str]:
-    """
-    Login dengan OTP.
-    Return (success, needs_2fa, error_message).
-    """
     try:
-        client = get_client()
+        client = get_client(phone)
         if not client.is_connected():
             await client.connect()
         await client.sign_in(phone=phone, code=code, phone_code_hash=phone_code_hash)
@@ -92,9 +166,9 @@ async def sign_in(phone: str, code: str, phone_code_hash: str) -> tuple[bool, bo
         return False, False, f"{type(e).__name__}: {e}"
 
 
-async def sign_in_2fa(password: str) -> bool:
+async def sign_in_2fa(phone: str, password: str) -> bool:
     try:
-        client = get_client()
+        client = get_client(phone)
         await client.sign_in(password=password)
         return True
     except Exception as e:
@@ -102,20 +176,32 @@ async def sign_in_2fa(password: str) -> bool:
         return False
 
 
-async def logout() -> bool:
+async def logout(phone: str | None = None) -> bool:
     try:
-        client = get_client()
+        client = get_client(phone)
         await client.log_out()
+        target_phone = phone or _PRIMARY_PHONE
+        _clients.pop(target_phone, None)
         return True
     except Exception as e:
         logger.error(f"logout error: {e}")
         return False
 
 
-async def resolve_target(identifier: str) -> dict | None:
+async def remove_client(phone: str) -> None:
+    """Disconnect dan hapus client dari memory."""
+    client = _clients.pop(phone, None)
+    if client and client.is_connected():
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+
+
+async def resolve_target(identifier: str, phone: str | None = None) -> dict | None:
     try:
-        client = get_client()
-        if not await is_connected():
+        client = get_client(phone)
+        if not await is_connected(phone):
             logger.error("resolve_target: client tidak connected")
             return None
 
@@ -127,12 +213,9 @@ async def resolve_target(identifier: str) -> dict | None:
         if identifier.startswith("@"):
             identifier = identifier[1:]
 
-        # Simpan username asli persis seperti input user (dengan underscore)
         display_username = identifier
-
         logger.info(f"resolve_target: mencoba akses '{identifier}'")
 
-        # Coba username dulu, kalau gagal coba pakai InputPeerUsername
         entity = None
         try:
             entity = await client.get_entity(identifier)
@@ -147,8 +230,6 @@ async def resolve_target(identifier: str) -> dict | None:
 
         if entity is None:
             return None
-
-        logger.info(f"resolve_target: entity type = {type(entity).__name__}, id = {entity.id}")
 
         if isinstance(entity, Channel):
             chat_type = "channel" if entity.broadcast else "supergroup"
@@ -172,17 +253,15 @@ async def resolve_target(identifier: str) -> dict | None:
                 "username":  display_username,
                 "chat_type": "user",
             }
-        logger.warning(f"resolve_target: tipe entity tidak dikenal: {type(entity)}")
         return None
     except Exception as e:
         logger.error(f"resolve_target '{identifier}' error: {type(e).__name__}: {e}")
         return None
 
 
-async def send_message_to(chat_id: int, message: str) -> None:
-    """Kirim pesan via akun Telethon. Raise exception jika gagal."""
-    client = get_client()
-    # Supergroup/channel perlu prefix -100
+async def send_message_to(chat_id: int, message: str, phone: str | None = None) -> None:
+    """Kirim pesan via akun Telethon."""
+    client = get_client(phone)
     if chat_id > 0:
         full_id = int(f"-100{chat_id}")
     else:
@@ -190,37 +269,30 @@ async def send_message_to(chat_id: int, message: str) -> None:
     await client.send_message(full_id, message)
 
 
-async def join_and_resolve(identifier: str) -> dict:
-    """
-    Resolve target. Jika belum join, auto-join dulu.
-    Return dict dengan key: chat_id, title, username, chat_type, joined (bool), error (str)
-    """
+async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
     from telethon.tl.functions.channels import JoinChannelRequest
     from telethon.tl.functions.messages import ImportChatInviteRequest
     from telethon.errors import UserAlreadyParticipantError
 
-    client = get_client()
+    client = get_client(phone)
     raw = identifier.strip()
 
-    # Ekstrak username/invite hash
     invite_hash = None
     if "t.me/+" in raw or "t.me/joinchat/" in raw:
         invite_hash = raw.split("/+")[-1] if "/+" in raw else raw.split("/joinchat/")[-1]
-    
+
     username = raw
     if username.startswith("https://t.me/"):
         username = username.replace("https://t.me/", "").split("/")[0]
     username = username.lstrip("@")
 
     try:
-        # Coba resolve dulu
         entity = None
         try:
             entity = await client.get_entity(username if not invite_hash else raw)
         except Exception:
             pass
 
-        # Kalau gagal resolve → coba join dulu
         if entity is None:
             try:
                 if invite_hash:
@@ -235,13 +307,11 @@ async def join_and_resolve(identifier: str) -> dict:
                 pass
             except Exception as e:
                 return {"error": str(e), "username": username}
-            # Re-resolve setelah join
             try:
                 entity = await client.get_entity(username if not invite_hash else raw)
             except Exception as e:
                 return {"error": str(e), "username": username}
         else:
-            # Sudah bisa resolve, coba join kalau belum
             try:
                 if invite_hash:
                     await client(ImportChatInviteRequest(invite_hash))
@@ -250,7 +320,7 @@ async def join_and_resolve(identifier: str) -> dict:
             except UserAlreadyParticipantError:
                 pass
             except Exception:
-                pass  # Sudah join, lanjut saja
+                pass
 
         if entity is None:
             return {"error": "Tidak dapat resolve", "username": username}
@@ -279,10 +349,9 @@ async def join_and_resolve(identifier: str) -> dict:
         return {"error": f"{type(e).__name__}: {e}", "username": username}
 
 
-async def get_joined_groups() -> list[dict]:
-    """Fetch semua grup/channel yang sudah di-join akun Telethon."""
-    client = get_client()
-    if not await is_connected():
+async def get_joined_groups(phone: str | None = None) -> list[dict]:
+    client = get_client(phone)
+    if not await is_connected(phone):
         return []
     results = []
     async for dialog in client.iter_dialogs():
@@ -305,8 +374,14 @@ async def get_joined_groups() -> list[dict]:
     return results
 
 
-async def disconnect() -> None:
-    global _client
-    if _client and _client.is_connected():
-        await _client.disconnect()
-    _client = None
+async def disconnect(phone: str | None = None) -> None:
+    global _clients
+    if phone:
+        client = _clients.pop(phone, None)
+        if client and client.is_connected():
+            await client.disconnect()
+    else:
+        for client in list(_clients.values()):
+            if client.is_connected():
+                await client.disconnect()
+        _clients.clear()
