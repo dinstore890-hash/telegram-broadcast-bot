@@ -439,87 +439,92 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     from telethon.tl.functions.channels import JoinChannelRequest
     from telethon.errors import UserAlreadyParticipantError, FloodWaitError
 
-    total_joined = 0
-    total_failed = 0
     total_targets = len([t for t in targets if t["username"]])
-    processed = 0
 
-    for acc in accounts:
-        phone = acc["phone"]
-        if not await is_connected(phone):
-            continue
-        client = get_client(phone)
-        joined = 0
-        failed = 0
-        for target in targets:
-            if _sync_cancel:
-                db.add_log("INFO", "Sync grup dibatalkan oleh admin")
-                try:
-                    await query.edit_message_text(
-                        "╭─ ⏹ SYNC DIBATALKAN\n╰─",
-                        reply_markup=_BACK_BTN,
-                    )
-                except Exception:
-                    pass
-                return
-            username = target["username"]
-            if not username:
+    async def _do_sync():
+        global _sync_cancel
+        total_joined = 0
+        total_failed = 0
+        processed = 0
+
+        for acc in accounts:
+            phone = acc["phone"]
+            if not await is_connected(phone):
                 continue
-            try:
-                entity = await client.get_entity(username)
-                await client(JoinChannelRequest(entity))
-                joined += 1
-                # Sleep 4 detik tapi cek cancel tiap 0.5 detik
-                for _ in range(8):
-                    if _sync_cancel:
-                        break
-                    await asyncio.sleep(0.5)
-            except UserAlreadyParticipantError:
-                joined += 1
-            except FloodWaitError as e:
-                wait = e.seconds + 5
-                for _ in range(wait * 2):
-                    if _sync_cancel:
-                        break
-                    await asyncio.sleep(0.5)
-            except Exception:
-                failed += 1
-
-            processed += 1
-            # Update progress tiap 5 grup
-            if processed % 5 == 0:
-                pct = int((processed / total_targets) * 100)
-                bar_filled = int(pct / 10)
-                bar = "█" * bar_filled + "░" * (10 - bar_filled)
+            client = get_client(phone)
+            joined = 0
+            failed = 0
+            for target in targets:
+                if _sync_cancel:
+                    db.add_log("INFO", "Sync grup dibatalkan oleh admin")
+                    try:
+                        await query.edit_message_text(
+                            "\u256d\u2500 \u23f9 SYNC DIBATALKAN\n\u2570\u2500",
+                            reply_markup=_BACK_BTN,
+                        )
+                    except Exception:
+                        pass
+                    return
+                username = target["username"]
+                if not username:
+                    continue
                 try:
-                    await query.edit_message_text(
-                        f"╭─ 🔄 SYNC GRUP\n"
-                        f"│\n"
-                        f"│  [{bar}] {pct}%\n"
-                        f"│\n"
-                        f"│  ✔ Berhasil : {total_joined + joined}\n"
-                        f"│  ✖ Gagal    : {total_failed + failed}\n"
-                        f"│  📡 Proses   : {processed}/{total_targets}\n"
-                        f"╰─",
-                        reply_markup=InlineKeyboardMarkup([
-                            [InlineKeyboardButton("❌ Batal Sync", callback_data="cb_cancelsync")]
-                        ])
-                    )
+                    entity = await client.get_entity(username)
+                    await client(JoinChannelRequest(entity))
+                    joined += 1
+                    for _ in range(8):
+                        if _sync_cancel:
+                            break
+                        await asyncio.sleep(0.5)
+                except UserAlreadyParticipantError:
+                    joined += 1
+                except FloodWaitError as e:
+                    for _ in range((e.seconds + 5) * 2):
+                        if _sync_cancel:
+                            break
+                        await asyncio.sleep(0.5)
                 except Exception:
-                    pass
+                    failed += 1
 
-        total_joined += joined
-        total_failed += failed
-        db.add_log("INFO", f"Sync grup akun {phone}: {joined} joined, {failed} gagal")
+                processed += 1
+                if processed % 5 == 0 or processed == total_targets:
+                    pct = int((processed / total_targets) * 100) if total_targets else 0
+                    bar_filled = int(pct / 10)
+                    bar = "\u2588" * bar_filled + "\u2591" * (10 - bar_filled)
+                    try:
+                        await query.edit_message_text(
+                            f"\u256d\u2500 \ud83d\udd04 SYNC GRUP\n"
+                            f"\u2502\n"
+                            f"\u2502  [{bar}] {pct}%\n"
+                            f"\u2502\n"
+                            f"\u2502  \u2714 Berhasil : {total_joined + joined}\n"
+                            f"\u2502  \u2716 Gagal    : {total_failed + failed}\n"
+                            f"\u2502  \ud83d\udce1 Proses   : {processed}/{total_targets}\n"
+                            f"\u2570\u2500",
+                            reply_markup=InlineKeyboardMarkup([
+                                [InlineKeyboardButton("\u274c Batal Sync", callback_data="cb_cancelsync")]
+                            ])
+                        )
+                    except Exception:
+                        pass
 
-    await query.edit_message_text(
-        f"╭─ ✅ SYNC SELESAI\n"
-        f"│\n"
-        f"│  Berhasil join : {total_joined}\n"
-        f"│  Gagal         : {total_failed}\n"
-        f"╰─",
-        reply_markup=_BACK_BTN,
-    )
+            total_joined += joined
+            total_failed += failed
+            db.add_log("INFO", f"Sync grup akun {phone}: {joined} joined, {failed} gagal")
+
+        try:
+            await query.edit_message_text(
+                f"\u256d\u2500 \u2705 SYNC SELESAI\n"
+                f"\u2502\n"
+                f"\u2502  Berhasil join : {total_joined}\n"
+                f"\u2502  Gagal         : {total_failed}\n"
+                f"\u2570\u2500",
+                reply_markup=_BACK_BTN,
+            )
+        except Exception:
+            pass
+
+    context.application.create_task(_do_sync())
 
 
 async def cancelsync_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
