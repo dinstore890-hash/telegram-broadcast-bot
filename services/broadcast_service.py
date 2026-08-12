@@ -133,8 +133,29 @@ async def run_broadcast(
                 await progress_callback("progress", _state)
                 continue
 
+            # Pilih akun aktif yang tersedia (prioritas akun utama dari .env)
+            from config import PHONE_NUMBER
+            from services.telegram_client import get_all_clients
+            active_phone = None
+            all_clients = get_all_clients()
+            # Prioritas akun utama
+            if PHONE_NUMBER and await is_connected(PHONE_NUMBER):
+                active_phone = PHONE_NUMBER
+            else:
+                # Fallback ke akun lain yang connected
+                for ph in all_clients:
+                    if await is_connected(ph):
+                        active_phone = ph
+                        break
+
+            if not active_phone:
+                db.update_broadcast_target(broadcast_id, target_id, "failed", "Tidak ada akun terkoneksi")
+                _state["failed"] += 1
+                await progress_callback("progress", _state)
+                continue
+
             try:
-                await send_message_to(chat_id, message)
+                await send_message_to(chat_id, message, active_phone)
                 db.update_broadcast_target(broadcast_id, target_id, "success")
                 db.add_log("INFO", f"{title} → berhasil")
                 _state["success"] += 1
@@ -146,7 +167,7 @@ async def run_broadcast(
                 await rate.handle_flood_wait(e.seconds)
                 # Coba sekali lagi setelah flood wait
                 try:
-                    await send_message_to(chat_id, message)
+                    await send_message_to(chat_id, message, active_phone)
                     db.update_broadcast_target(broadcast_id, target_id, "success")
                     db.add_log("INFO", f"{title} → berhasil (setelah FloodWait)")
                     _state["success"] += 1
