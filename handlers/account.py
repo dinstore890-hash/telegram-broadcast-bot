@@ -469,11 +469,19 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                 entity = await client.get_entity(username)
                 await client(JoinChannelRequest(entity))
                 joined += 1
-                await asyncio.sleep(4)
+                # Sleep 4 detik tapi cek cancel tiap 0.5 detik
+                for _ in range(8):
+                    if _sync_cancel:
+                        break
+                    await asyncio.sleep(0.5)
             except UserAlreadyParticipantError:
                 joined += 1
             except FloodWaitError as e:
-                await asyncio.sleep(e.seconds + 5)
+                wait = e.seconds + 5
+                for _ in range(wait * 2):
+                    if _sync_cancel:
+                        break
+                    await asyncio.sleep(0.5)
             except Exception:
                 failed += 1
 
