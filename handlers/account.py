@@ -71,6 +71,7 @@ async def _show_accounts(query_or_msg, edit: bool = True) -> None:
         name = acc["name"] or phone
         keyboard.append([InlineKeyboardButton(f"🗑 Hapus {name}", callback_data=f"cb_delacc_{phone}")])
 
+    keyboard.append([InlineKeyboardButton("🔄 Sync Grup ke Semua Akun", callback_data="cb_syncgroups")])
     keyboard.append([InlineKeyboardButton("➕ Tambah Akun", callback_data="cb_addacc_start")])
     keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")])
 
@@ -399,7 +400,77 @@ async def cancel_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     return ConversationHandler.END
 
 
-# ── Reconnect & Logout (akun utama .env, backward compat) ────────────────────
+# ── Sync Grup ────────────────────────────────────────────────────────────────
+
+async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    targets = db.get_active_targets()
+    if not targets:
+        await query.edit_message_text("╭─ ❌ Belum ada target grup.\n╰─", reply_markup=_BACK_BTN)
+        return
+
+    accounts = db.get_active_accounts()
+    if len(accounts) < 2:
+        await query.edit_message_text("╭─ ❌ Hanya ada 1 akun, tidak perlu sync.\n╰─", reply_markup=_BACK_BTN)
+        return
+
+    await query.edit_message_text(
+        f"╭─ 🔄 SYNC GRUP\n"
+        f"│\n"
+        f"│ Memulai join {len(targets)} grup ke semua akun...\n"
+        f"│ Ini mungkin butuh beberapa menit.\n"
+        f"╰─"
+    )
+
+    from services.telegram_client import get_client, is_connected
+    from telethon.tl.functions.channels import JoinChannelRequest
+    from telethon.errors import UserAlreadyParticipantError, FloodWaitError
+    import asyncio
+
+    total_joined = 0
+    total_failed = 0
+
+    for acc in accounts:
+        phone = acc["phone"]
+        if not await is_connected(phone):
+            continue
+        client = get_client(phone)
+        joined = 0
+        failed = 0
+        for target in targets:
+            username = target["username"]
+            if not username:
+                continue
+            try:
+                entity = await client.get_entity(username)
+                await client(JoinChannelRequest(entity))
+                joined += 1
+                await asyncio.sleep(2)
+            except UserAlreadyParticipantError:
+                joined += 1
+            except FloodWaitError as e:
+                await asyncio.sleep(e.seconds)
+            except Exception:
+                failed += 1
+        total_joined += joined
+        total_failed += failed
+        db.add_log("INFO", f"Sync grup akun {phone}: {joined} joined, {failed} gagal")
+
+    await query.edit_message_text(
+        f"╭─ ✅ SYNC SELESAI\n"
+        f"│\n"
+        f"│  Berhasil join : {total_joined}\n"
+        f"│  Gagal         : {total_failed}\n"
+        f"╰─",
+        reply_markup=_BACK_BTN,
+    )
+
+
+# ── Reconnect & Logout ────────────────────────────────────────────────────────
 
 async def reconnect_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
