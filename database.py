@@ -81,13 +81,14 @@ def init_db() -> None:
             );
 
             CREATE TABLE IF NOT EXISTS accounts (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                phone        TEXT UNIQUE NOT NULL,
-                session_name TEXT UNIQUE NOT NULL,
-                name         TEXT,
-                username     TEXT,
-                is_active    INTEGER DEFAULT 1,
-                added_at     TEXT NOT NULL
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                phone          TEXT UNIQUE NOT NULL,
+                session_name   TEXT UNIQUE NOT NULL,
+                name           TEXT,
+                username       TEXT,
+                string_session TEXT DEFAULT '',
+                is_active      INTEGER DEFAULT 1,
+                added_at       TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS users (
@@ -372,12 +373,12 @@ def reject_order(order_id: int) -> None:
 
 # ── Accounts ─────────────────────────────────────────────────────────────────
 
-def add_account(phone: str, session_name: str, name: str = "", username: str = "") -> bool:
+def add_account(phone: str, session_name: str, name: str = "", username: str = "", string_session: str = "") -> bool:
     try:
         with get_connection() as conn:
             conn.execute(
-                "INSERT INTO accounts (phone, session_name, name, username, added_at) VALUES (?,?,?,?,?)",
-                (phone, session_name, name, username, datetime.now().isoformat()),
+                "INSERT INTO accounts (phone, session_name, name, username, string_session, added_at) VALUES (?,?,?,?,?,?)",
+                (phone, session_name, name, username, string_session, datetime.now().isoformat()),
             )
         return True
     except sqlite3.IntegrityError:

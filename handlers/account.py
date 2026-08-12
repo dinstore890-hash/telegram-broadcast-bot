@@ -202,7 +202,7 @@ async def wait_string_session_handler(update: Update, context: ContextTypes.DEFA
 
         _clients[phone] = client
 
-        db.add_account(phone, session_name, name, username)
+        db.add_account(phone, session_name, name, username, string_session)
         db.add_log("INFO", f"Akun ditambahkan via String Session: {phone} (@{username})")
 
         await msg.edit_text(

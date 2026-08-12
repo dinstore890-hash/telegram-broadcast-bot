@@ -78,7 +78,11 @@ async def load_accounts_from_db() -> None:
     for acc in accounts:
         phone = acc["phone"]
         if phone not in _clients:
-            _clients[phone] = _make_client(acc["session_name"])
+            if acc["string_session"]:
+                from telethon.sessions import StringSession
+                _clients[phone] = TelegramClient(StringSession(acc["string_session"]), API_ID, API_HASH)
+            else:
+                _clients[phone] = _make_client(acc["session_name"])
     logger.info(f"Loaded {len(accounts)} akun dari DB")
 
 
