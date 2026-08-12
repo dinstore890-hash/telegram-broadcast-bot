@@ -12,6 +12,11 @@ def get_connection() -> sqlite3.Connection:
 
 def init_db() -> None:
     with get_connection() as conn:
+        # Migration: tambah kolom string_session kalau belum ada
+        try:
+            conn.execute("ALTER TABLE accounts ADD COLUMN string_session TEXT DEFAULT ''")
+        except Exception:
+            pass
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS targets (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
