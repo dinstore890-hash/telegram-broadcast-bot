@@ -53,6 +53,27 @@ def get_all_clients() -> dict[str, TelegramClient]:
 async def load_accounts_from_db() -> None:
     """Load semua akun dari DB ke _clients saat startup."""
     import database as db
+
+    # Load akun utama dari .env ke DB kalau belum ada
+    if _PRIMARY_PHONE:
+        if not db.get_account_by_phone(_PRIMARY_PHONE):
+            string_session = os.getenv("STRING_SESSION", "").strip()
+            if string_session:
+                from telethon.sessions import StringSession
+                client = TelegramClient(StringSession(string_session), API_ID, API_HASH)
+                await client.connect()
+                if await client.is_user_authorized():
+                    me = await client.get_me()
+                    name = f"{me.first_name or ''} {me.last_name or ''}".strip()
+                    username = me.username or ""
+                    session_name = _PRIMARY_PHONE.replace("+", "")
+                    db.add_account(_PRIMARY_PHONE, session_name, name, username)
+                    _clients[_PRIMARY_PHONE] = client
+                    logger.info(f"Akun utama .env dimuat: {_PRIMARY_PHONE}")
+            else:
+                session_name = _PRIMARY_PHONE.replace("+", "")
+                db.add_account(_PRIMARY_PHONE, session_name)
+
     accounts = db.get_active_accounts()
     for acc in accounts:
         phone = acc["phone"]
