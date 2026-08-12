@@ -437,6 +437,7 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     global _sync_cancel
     _sync_cancel = False
+    await asyncio.sleep(0.1)  # Pastiin flag ter-reset sebelum task jalan
 
     from services.telegram_client import get_client, is_connected
     from telethon.tl.functions.channels import JoinChannelRequest
@@ -468,7 +469,7 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         for acc in accounts:
             phone = acc["phone"]
             # Skip akun utama karena sudah join semua grup
-            if phone == PHONE_NUMBER:
+            if phone.lstrip("+") == PHONE_NUMBER.lstrip("+"):
                 continue
             if not await is_connected(phone):
                 continue
