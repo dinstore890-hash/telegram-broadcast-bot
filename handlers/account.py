@@ -14,7 +14,7 @@ import database as db
 
 logger = logging.getLogger(__name__)
 
-WAIT_PHONE, WAIT_OTP, WAIT_2FA = range(3)
+WAIT_PHONE, WAIT_OTP, WAIT_2FA, WAIT_STRING_SESSION = range(4)
 
 _BACK_BTN = InlineKeyboardMarkup([
     [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_account")]
@@ -117,12 +117,115 @@ async def addacc_start_callback(update: Update, context: ContextTypes.DEFAULT_TY
     await query.edit_message_text(
         "╭─ ➕ TAMBAH AKUN BARU\n"
         "│\n"
+        "│ Pilih metode login:\n"
+        "╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔑 OTP", callback_data="cb_addacc_otp")],
+            [InlineKeyboardButton("📋 String Session", callback_data="cb_addacc_string")],
+            [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_account")],
+        ])
+    )
+    return ConversationHandler.END
+
+
+async def addacc_otp_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    await query.edit_message_text(
+        "╭─ 🔑 LOGIN VIA OTP\n"
+        "│\n"
         "│ Kirim nomor HP format internasional.\n"
         "│ Contoh: +628123456789\n"
         "│\n"
         "╰─ Ketik /cancel untuk batal."
     )
     return WAIT_PHONE
+
+
+async def addacc_string_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    await query.edit_message_text(
+        "╭─ 📋 LOGIN VIA STRING SESSION\n"
+        "│\n"
+        "│ Paste string session kamu di sini.\n"
+        "│\n"
+        "╰─ Ketik /cancel untuk batal."
+    )
+    return WAIT_STRING_SESSION
+
+
+async def wait_string_session_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    string_session = update.message.text.strip()
+
+    try:
+        await update.message.delete()
+    except Exception:
+        pass
+
+    msg = await update.effective_chat.send_message("╭─ ⏳ Mencoba connect...\n╰─")
+
+    try:
+        from telethon import TelegramClient
+        from telethon.sessions import StringSession
+        from config import API_ID, API_HASH
+        from services.telegram_client import _clients
+
+        client = TelegramClient(StringSession(string_session), API_ID, API_HASH)
+        await client.connect()
+
+        if not await client.is_user_authorized():
+            await msg.edit_text(
+                "╭─ ❌ STRING SESSION TIDAK VALID\n"
+                "│\n"
+                "│ Session sudah expired atau salah.\n"
+                "╰─",
+                reply_markup=_BACK_BTN,
+            )
+            await client.disconnect()
+            return ConversationHandler.END
+
+        me = await client.get_me()
+        phone = f"+{me.phone}"
+        name = f"{me.first_name or ''} {me.last_name or ''}".strip()
+        username = me.username or ""
+        session_name = phone.replace("+", "")
+
+        _clients[phone] = client
+
+        db.add_account(phone, session_name, name, username)
+        db.add_log("INFO", f"Akun ditambahkan via String Session: {phone} (@{username})")
+
+        await msg.edit_text(
+            f"╭─ ✅ AKUN BERHASIL DITAMBAHKAN\n"
+            f"│\n"
+            f"│  Nama     : {name}\n"
+            f"│  Username : @{username}\n"
+            f"│  Phone    : {phone}\n"
+            f"╰─",
+            reply_markup=_BACK_BTN,
+        )
+
+    except Exception as e:
+        logger.error(f"String session error: {e}")
+        await msg.edit_text(
+            f"╭─ ❌ GAGAL\n"
+            f"│\n"
+            f"│ {e}\n"
+            f"╰─",
+            reply_markup=_BACK_BTN,
+        )
+
+    return ConversationHandler.END
 
 
 async def wait_phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -331,11 +434,16 @@ async def logout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 def build_login_conversation() -> ConversationHandler:
     return ConversationHandler(
-        entry_points=[CallbackQueryHandler(addacc_start_callback, pattern="^cb_addacc_start$")],
+        entry_points=[
+            CallbackQueryHandler(addacc_start_callback,  pattern="^cb_addacc_start$"),
+            CallbackQueryHandler(addacc_otp_callback,    pattern="^cb_addacc_otp$"),
+            CallbackQueryHandler(addacc_string_callback, pattern="^cb_addacc_string$"),
+        ],
         states={
-            WAIT_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_phone_handler)],
-            WAIT_OTP:   [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_otp_handler)],
-            WAIT_2FA:   [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_2fa_handler)],
+            WAIT_PHONE:          [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_phone_handler)],
+            WAIT_OTP:            [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_otp_handler)],
+            WAIT_2FA:            [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_2fa_handler)],
+            WAIT_STRING_SESSION: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_string_session_handler)],
         },
         fallbacks=[MessageHandler(filters.COMMAND, cancel_login)],
         per_chat=True,
