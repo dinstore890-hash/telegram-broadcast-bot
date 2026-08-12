@@ -65,17 +65,19 @@ async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return ConversationHandler.END
 
-    # Simpan semua target id sebagai selected default
     selected = {t["id"] for t in targets}
     context.user_data["bc_selected"] = selected
     context.user_data["bc_targets"]  = [dict(t) for t in targets]
 
     test_badge = "  🧪 TEST MODE" if TEST_MODE else ""
     await query.edit_message_text(
-        f"╭─ 📢 PILIH TARGET{test_badge}\n│\n╰─ Centang/hapus centang target broadcast:",
-        reply_markup=_build_target_keyboard(targets, selected),
+        f"╭─ 📢 BROADCAST{test_badge}\n"
+        f"│\n"
+        f"│  Total target : {len(targets)}\n"
+        f"│\n"
+        f"╰─ Kirim pesan yang ingin dibroadcast.\nKetik /cancel untuk batal."
     )
-    return SELECT_TARGETS
+    return WAIT_MESSAGE
 
 
 async def toggle_target_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
