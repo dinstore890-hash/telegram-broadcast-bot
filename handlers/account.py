@@ -441,6 +441,8 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     total_joined = 0
     total_failed = 0
+    total_targets = len([t for t in targets if t["username"]])
+    processed = 0
 
     for acc in accounts:
         phone = acc["phone"]
@@ -474,6 +476,30 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                 await asyncio.sleep(e.seconds + 5)
             except Exception:
                 failed += 1
+
+            processed += 1
+            # Update progress tiap 5 grup
+            if processed % 5 == 0:
+                pct = int((processed / total_targets) * 100)
+                bar_filled = int(pct / 10)
+                bar = "█" * bar_filled + "░" * (10 - bar_filled)
+                try:
+                    await query.edit_message_text(
+                        f"╭─ 🔄 SYNC GRUP\n"
+                        f"│\n"
+                        f"│  [{bar}] {pct}%\n"
+                        f"│\n"
+                        f"│  ✔ Berhasil : {total_joined + joined}\n"
+                        f"│  ✖ Gagal    : {total_failed + failed}\n"
+                        f"│  📡 Proses   : {processed}/{total_targets}\n"
+                        f"╰─",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("❌ Batal Sync", callback_data="cb_cancelsync")]
+                        ])
+                    )
+                except Exception:
+                    pass
+
         total_joined += joined
         total_failed += failed
         db.add_log("INFO", f"Sync grup akun {phone}: {joined} joined, {failed} gagal")
