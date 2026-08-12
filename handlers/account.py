@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -13,6 +14,8 @@ from services import telegram_client
 import database as db
 
 logger = logging.getLogger(__name__)
+
+_sync_cancel = False
 
 WAIT_PHONE, WAIT_OTP, WAIT_2FA, WAIT_STRING_SESSION = range(4)
 
@@ -423,13 +426,18 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"│\n"
         f"│ Memulai join {len(targets)} grup ke semua akun...\n"
         f"│ Ini mungkin butuh beberapa menit.\n"
-        f"╰─"
+        f"╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("❌ Batal Sync", callback_data="cb_cancelsync")]
+        ])
     )
+
+    global _sync_cancel
+    _sync_cancel = False
 
     from services.telegram_client import get_client, is_connected
     from telethon.tl.functions.channels import JoinChannelRequest
     from telethon.errors import UserAlreadyParticipantError, FloodWaitError
-    import asyncio
 
     total_joined = 0
     total_failed = 0
@@ -442,6 +450,16 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         joined = 0
         failed = 0
         for target in targets:
+            if _sync_cancel:
+                db.add_log("INFO", "Sync grup dibatalkan oleh admin")
+                try:
+                    await query.edit_message_text(
+                        "╭─ ⏹ SYNC DIBATALKAN\n╰─",
+                        reply_markup=_BACK_BTN,
+                    )
+                except Exception:
+                    pass
+                return
             username = target["username"]
             if not username:
                 continue
@@ -468,6 +486,16 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"╰─",
         reply_markup=_BACK_BTN,
     )
+
+
+async def cancelsync_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+    global _sync_cancel
+    _sync_cancel = True
+    await query.answer("⏹ Sync akan dihentikan...", show_alert=True)
 
 
 # ── Reconnect & Logout ────────────────────────────────────────────────────────
