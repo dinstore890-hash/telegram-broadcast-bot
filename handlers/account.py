@@ -440,6 +440,20 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     from telethon.errors import UserAlreadyParticipantError, FloodWaitError
 
     total_targets = len([t for t in targets if t["username"]])
+    # Kirim pesan baru sebagai progress message
+    progress_msg = await query.message.reply_text(
+        f"╭─ 🔄 SYNC GRUP\n"
+        f"│\n"
+        f"│  [░░░░░░░░░░] 0%\n"
+        f"│\n"
+        f"│  ✔ Berhasil : 0\n"
+        f"│  ✖ Gagal    : 0\n"
+        f"│  📡 Proses   : 0/{total_targets}\n"
+        f"╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("❌ Batal Sync", callback_data="cb_cancelsync")]
+        ])
+    )
 
     async def _do_sync():
         global _sync_cancel
@@ -458,8 +472,8 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                 if _sync_cancel:
                     db.add_log("INFO", "Sync grup dibatalkan oleh admin")
                     try:
-                        await query.edit_message_text(
-                            "\u256d\u2500 \u23f9 SYNC DIBATALKAN\n\u2570\u2500",
+                        await progress_msg.edit_text(
+                            "╭─ ⏹ SYNC DIBATALKAN\n╰─",
                             reply_markup=_BACK_BTN,
                         )
                     except Exception:
@@ -490,19 +504,19 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                 if processed % 5 == 0 or processed == total_targets:
                     pct = int((processed / total_targets) * 100) if total_targets else 0
                     bar_filled = int(pct / 10)
-                    bar = "\u2588" * bar_filled + "\u2591" * (10 - bar_filled)
+                    bar = "█" * bar_filled + "░" * (10 - bar_filled)
                     try:
-                        await query.edit_message_text(
-                            f"\u256d\u2500 \ud83d\udd04 SYNC GRUP\n"
-                            f"\u2502\n"
-                            f"\u2502  [{bar}] {pct}%\n"
-                            f"\u2502\n"
-                            f"\u2502  \u2714 Berhasil : {total_joined + joined}\n"
-                            f"\u2502  \u2716 Gagal    : {total_failed + failed}\n"
-                            f"\u2502  \ud83d\udce1 Proses   : {processed}/{total_targets}\n"
-                            f"\u2570\u2500",
+                        await progress_msg.edit_text(
+                            f"╭─ 🔄 SYNC GRUP\n"
+                            f"│\n"
+                            f"│  [{bar}] {pct}%\n"
+                            f"│\n"
+                            f"│  ✔ Berhasil : {total_joined + joined}\n"
+                            f"│  ✖ Gagal    : {total_failed + failed}\n"
+                            f"│  📡 Proses   : {processed}/{total_targets}\n"
+                            f"╰─",
                             reply_markup=InlineKeyboardMarkup([
-                                [InlineKeyboardButton("\u274c Batal Sync", callback_data="cb_cancelsync")]
+                                [InlineKeyboardButton("❌ Batal Sync", callback_data="cb_cancelsync")]
                             ])
                         )
                     except Exception:
@@ -513,12 +527,12 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             db.add_log("INFO", f"Sync grup akun {phone}: {joined} joined, {failed} gagal")
 
         try:
-            await query.edit_message_text(
-                f"\u256d\u2500 \u2705 SYNC SELESAI\n"
-                f"\u2502\n"
-                f"\u2502  Berhasil join : {total_joined}\n"
-                f"\u2502  Gagal         : {total_failed}\n"
-                f"\u2570\u2500",
+            await progress_msg.edit_text(
+                f"╭─ ✅ SYNC SELESAI\n"
+                f"│\n"
+                f"│  Berhasil join : {total_joined}\n"
+                f"│  Gagal         : {total_failed}\n"
+                f"╰─",
                 reply_markup=_BACK_BTN,
             )
         except Exception:
