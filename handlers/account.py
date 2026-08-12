@@ -198,7 +198,11 @@ async def wait_otp_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await _save_new_account(phone, update)
         return ConversationHandler.END
 
-    if "Expired" in error_msg or "expired" in error_msg:
+    # Hanya kirim ulang OTP kalau memang expired, bukan salah kode
+    is_expired = "PhoneCodeExpired" in error_msg or "Expired" in error_msg
+    is_invalid = "PhoneCodeInvalid" in error_msg or "Invalid" in error_msg
+
+    if is_expired:
         msg = await update.message.reply_text("╭─ ⏳ Kode expired. Mengirim ulang OTP...\n╰─")
         new_hash = await telegram_client.send_code(phone)
         if new_hash:
@@ -214,13 +218,24 @@ async def wait_otp_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             return ConversationHandler.END
         return WAIT_OTP
 
+    if is_invalid:
+        await update.message.reply_text(
+            "╭─ ❌ KODE OTP SALAH\n"
+            "│\n"
+            "│ Kode yang kamu masukkan salah.\n"
+            "│ Coba kirim ulang kode OTP yang benar.\n"
+            "╰─"
+        )
+        return WAIT_OTP
+
     await update.message.reply_text(
         f"╭─ ❌ LOGIN GAGAL\n"
         f"│\n"
         f"│ {error_msg}\n"
-        f"╰─ Coba kirim ulang kode OTP."
+        f"╰─",
+        reply_markup=_BACK_BTN,
     )
-    return WAIT_OTP
+    return ConversationHandler.END
 
 
 async def wait_2fa_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
