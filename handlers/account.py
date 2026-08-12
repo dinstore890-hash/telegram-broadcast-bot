@@ -15,8 +15,6 @@ import database as db
 
 logger = logging.getLogger(__name__)
 
-_sync_cancel = False
-
 WAIT_PHONE, WAIT_OTP, WAIT_2FA, WAIT_STRING_SESSION = range(4)
 
 _BACK_BTN = InlineKeyboardMarkup([
@@ -74,7 +72,6 @@ async def _show_accounts(query_or_msg, edit: bool = True) -> None:
         name = acc["name"] or phone
         keyboard.append([InlineKeyboardButton(f"🗑 Hapus {name}", callback_data=f"cb_delacc_{phone}")])
 
-    keyboard.append([InlineKeyboardButton("🔄 Sync Grup ke Semua Akun", callback_data="cb_syncgroups")])
     keyboard.append([InlineKeyboardButton("➕ Tambah Akun", callback_data="cb_addacc_start")])
     keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")])
 
@@ -401,162 +398,6 @@ async def cancel_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     context.user_data.clear()
     await update.message.reply_text("╭─ ❌ Dibatalkan.\n╰─", reply_markup=_BACK_BTN)
     return ConversationHandler.END
-
-
-# ── Sync Grup ────────────────────────────────────────────────────────────────
-
-async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    if not is_admin(query.from_user.id):
-        return
-
-    targets = db.get_active_targets()
-    if not targets:
-        await query.edit_message_text("╭─ ❌ Belum ada target grup.\n╰─", reply_markup=_BACK_BTN)
-        return
-
-    accounts = db.get_active_accounts()
-    if len(accounts) < 2:
-        await query.edit_message_text("╭─ ❌ Hanya ada 1 akun, tidak perlu sync.\n╰─", reply_markup=_BACK_BTN)
-        return
-
-    await query.edit_message_text(
-        f"╭─ 🔄 SYNC GRUP\n"
-        f"│\n"
-        f"│ Memulai join {len(targets)} grup ke semua akun...\n"
-        f"│ Ini mungkin butuh beberapa menit.\n"
-        f"│\n"
-        f"│  ⤷  Total Target  : {db.get_stats()['total_targets']}\n"
-        f"│  ⤷  Target Aktif  : {db.get_stats()['active_targets']}\n"
-        f"╰─",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ Batal Sync", callback_data="cb_cancelsync")]
-        ])
-    )
-
-    global _sync_cancel
-    _sync_cancel = False
-    await asyncio.sleep(0.1)  # Pastiin flag ter-reset sebelum task jalan
-
-    from services.telegram_client import get_client, is_connected
-    from telethon.tl.functions.channels import JoinChannelRequest
-    from telethon.errors import UserAlreadyParticipantError, FloodWaitError
-
-    total_targets = len([t for t in targets if t["username"]])
-    # Kirim pesan baru sebagai progress message
-    progress_msg = await query.message.reply_text(
-        f"╭─ 🔄 SYNC GRUP\n"
-        f"│\n"
-        f"│  [░░░░░░░░░░] 0%\n"
-        f"│\n"
-        f"│  ✔ Berhasil : 0\n"
-        f"│  ✖ Gagal    : 0\n"
-        f"│  📡 Proses   : 0/{total_targets}\n"
-        f"╰─",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ Batal Sync", callback_data="cb_cancelsync")]
-        ])
-    )
-
-    async def _do_sync():
-        global _sync_cancel
-        from config import PHONE_NUMBER
-        total_joined = 0
-        total_failed = 0
-        processed = 0
-
-        for acc in accounts:
-            phone = acc["phone"]
-            # Skip akun utama karena sudah join semua grup
-            if phone.lstrip("+") == PHONE_NUMBER.lstrip("+"):
-                continue
-            if not await is_connected(phone):
-                continue
-            client = get_client(phone)
-            joined = 0
-            failed = 0
-            for target in targets:
-                if _sync_cancel:
-                    db.add_log("INFO", "Sync grup dibatalkan oleh admin")
-                    try:
-                        await progress_msg.edit_text(
-                            "╭─ ⏹ SYNC DIBATALKAN\n╰─",
-                            reply_markup=_BACK_BTN,
-                        )
-                    except Exception:
-                        pass
-                    return
-                username = target["username"]
-                if not username:
-                    continue
-                try:
-                    entity = await client.get_entity(username)
-                    await client(JoinChannelRequest(entity))
-                    joined += 1
-                    for _ in range(8):
-                        if _sync_cancel:
-                            break
-                        await asyncio.sleep(0.5)
-                except UserAlreadyParticipantError:
-                    joined += 1
-                except FloodWaitError as e:
-                    for _ in range((e.seconds + 5) * 2):
-                        if _sync_cancel:
-                            break
-                        await asyncio.sleep(0.5)
-                except Exception:
-                    failed += 1
-
-                processed += 1
-                if processed % 5 == 0 or processed == total_targets:
-                    pct = int((processed / total_targets) * 100) if total_targets else 0
-                    bar_filled = int(pct / 10)
-                    bar = "█" * bar_filled + "░" * (10 - bar_filled)
-                    try:
-                        await progress_msg.edit_text(
-                            f"╭─ 🔄 SYNC GRUP\n"
-                            f"│\n"
-                            f"│  [{bar}] {pct}%\n"
-                            f"│\n"
-                            f"│  ✔ Berhasil : {total_joined + joined}\n"
-                            f"│  ✖ Gagal    : {total_failed + failed}\n"
-                            f"│  📡 Proses   : {processed}/{total_targets}\n"
-                            f"╰─",
-                            reply_markup=InlineKeyboardMarkup([
-                                [InlineKeyboardButton("❌ Batal Sync", callback_data="cb_cancelsync")]
-                            ])
-                        )
-                    except Exception:
-                        pass
-
-            total_joined += joined
-            total_failed += failed
-            db.add_log("INFO", f"Sync grup akun {phone}: {joined} joined, {failed} gagal")
-
-        try:
-            await progress_msg.edit_text(
-                f"╭─ ✅ SYNC SELESAI\n"
-                f"│\n"
-                f"│  Berhasil join : {total_joined}\n"
-                f"│  Gagal         : {total_failed}\n"
-                f"╰─",
-                reply_markup=_BACK_BTN,
-            )
-        except Exception:
-            pass
-
-    context.application.create_task(_do_sync())
-
-
-async def cancelsync_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    if not is_admin(query.from_user.id):
-        return
-    global _sync_cancel
-    _sync_cancel = True
-    await query.answer("⏹ Sync akan dihentikan...", show_alert=True)
 
 
 # ── Reconnect & Logout ────────────────────────────────────────────────────────
