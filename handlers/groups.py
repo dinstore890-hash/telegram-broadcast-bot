@@ -63,6 +63,7 @@ async def _show_groups(query) -> None:
         ],
         [InlineKeyboardButton("📥 Import dari Akun",    callback_data="cb_importgroups")],
         [InlineKeyboardButton("📋 Bulk Join & Tambah",  callback_data="cb_bulkjoin")],
+        [InlineKeyboardButton("📤 Export Target",        callback_data="cb_exporttargets")],
         [InlineKeyboardButton("🔄 Refresh",             callback_data="cb_groups")],
         [InlineKeyboardButton("⬅️ Kembali",             callback_data="cb_dashboard")],
     ])
@@ -144,6 +145,21 @@ async def importconfirm_callback(update: Update, context: ContextTypes.DEFAULT_T
             [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
         ]),
     )
+
+
+async def exporttargets_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+    targets = db.get_active_targets()
+    usernames = [f"@{t['username']}" for t in targets if t["username"]]
+    if not usernames:
+        await query.edit_message_text("╭─ ❌ Tidak ada target dengan username.\n╰─", reply_markup=_BACK_BTN)
+        return
+    chunk = 100
+    for i in range(0, len(usernames), chunk):
+        await query.message.reply_text("\n".join(usernames[i:i+chunk]))
 
 
 async def bulkjoin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

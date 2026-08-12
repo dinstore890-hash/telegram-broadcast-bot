@@ -19,7 +19,7 @@ from handlers.account import (
 from handlers.groups import (
     groups_callback, removetarget_callback, delete_target_callback,
     importgroups_callback, importconfirm_callback,
-    bulkjoin_callback,
+    bulkjoin_callback, exporttargets_callback,
     build_addtarget_conversation,
 )
 from handlers.broadcast import (
@@ -111,6 +111,7 @@ def build_app():
     app.add_handler(CallbackQueryHandler(delete_target_callback,  pattern="^cb_del_\\d+$"))
     app.add_handler(CallbackQueryHandler(importgroups_callback,   pattern="^cb_importgroups$"))
     app.add_handler(CallbackQueryHandler(importconfirm_callback,  pattern="^cb_importconfirm$"))
+    app.add_handler(CallbackQueryHandler(exporttargets_callback,  pattern="^cb_exporttargets$"))
     app.add_handler(CallbackQueryHandler(pause_callback,          pattern="^cb_pause$"))
     app.add_handler(CallbackQueryHandler(resume_callback,         pattern="^bc_resume$"))
     app.add_handler(CallbackQueryHandler(cancel_running_callback, pattern="^bc_cancel$"))
