@@ -460,12 +460,16 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     async def _do_sync():
         global _sync_cancel
+        from config import PHONE_NUMBER
         total_joined = 0
         total_failed = 0
         processed = 0
 
         for acc in accounts:
             phone = acc["phone"]
+            # Skip akun utama karena sudah join semua grup
+            if phone == PHONE_NUMBER:
+                continue
             if not await is_connected(phone):
                 continue
             client = get_client(phone)
