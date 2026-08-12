@@ -152,28 +152,55 @@ async def bulkjoin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if not is_admin(query.from_user.id):
         return ConversationHandler.END
 
-    connected = await telegram_client.is_connected()
-    if not connected:
+    # Tampilkan pilihan akun
+    accounts = db.get_active_accounts()
+    if not accounts:
         await query.edit_message_text(
-            "╭─ ❌ TIDAK TERKONEKSI\n"
-            "│\n"
-            "│ Akun Telegram belum terkoneksi.\n"
-            "╰─ Login dulu melalui menu 👤 Account.",
+            "╭─ ❌ TIDAK TERKONEKSI\n│\n│ Belum ada akun terdaftar.\n╰─",
             reply_markup=_BACK_BTN,
         )
         return ConversationHandler.END
 
+    keyboard = []
+    for acc in accounts:
+        name = acc["name"] or acc["phone"]
+        keyboard.append([InlineKeyboardButton(
+            f"📱 {name} ({acc['phone']})",
+            callback_data=f"cb_bulkjoin_acc_{acc['phone']}"
+        )])
+    keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_groups")])
+
     await query.edit_message_text(
         "╭─ 📋 BULK JOIN & TAMBAH\n"
         "│\n"
-        "│ Kirim daftar link/username,\n"
-        "│ satu per baris. Contoh:\n"
-        "│\n"
-        "│  https://t.me/grupA\n"
-        "│  https://t.me/grupB\n"
-        "│  @grupC\n"
-        "│\n"
-        "╰─ Ketik /cancel untuk batal."
+        "│ Pilih akun yang akan join grup:\n"
+        "╰─",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return ConversationHandler.END
+
+
+async def bulkjoin_acc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    phone = query.data.replace("cb_bulkjoin_acc_", "")
+    context.user_data["bulkjoin_phone"] = phone
+
+    await query.edit_message_text(
+        f"╭─ 📋 BULK JOIN & TAMBAH\n"
+        f"│\n"
+        f"│ Akun: {phone}\n"
+        f"│\n"
+        f"│ Kirim daftar link/username,\n"
+        f"│ satu per baris. Contoh:\n"
+        f"│\n"
+        f"│  https://t.me/grupA\n"
+        f"│  @grupB\n"
+        f"│\n"
+        f"╰─ Ketik /cancel untuk batal."
     )
     return WAIT_BULK_INPUT
 
@@ -189,10 +216,11 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     msg = await update.message.reply_text(f"╭─ ⏳ Memproses 0/{len(lines)}...\n╰─")
 
+    phone = context.user_data.pop("bulkjoin_phone", None)
     success, failed = [], []
     for i, link in enumerate(lines, 1):
         await msg.edit_text(f"╭─ ⏳ Memproses {i}/{len(lines)}...\n│ 🔗 {link}\n╰─")
-        result = await telegram_client.join_and_resolve(link)
+        result = await telegram_client.join_and_resolve(link, phone)
         if result.get("error"):
             failed.append(f"❌ {link} → {result['error']}")
         else:
@@ -393,8 +421,9 @@ async def delete_target_callback(update: Update, context: ContextTypes.DEFAULT_T
 def build_addtarget_conversation() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[
-            CallbackQueryHandler(addtarget_callback, pattern="^cb_addtarget$"),
-            CallbackQueryHandler(bulkjoin_callback,  pattern="^cb_bulkjoin$"),
+            CallbackQueryHandler(addtarget_callback,   pattern="^cb_addtarget$"),
+            CallbackQueryHandler(bulkjoin_callback,    pattern="^cb_bulkjoin$"),
+            CallbackQueryHandler(bulkjoin_acc_callback, pattern="^cb_bulkjoin_acc_"),
         ],
         states={
             WAIT_TARGET_INPUT: [
