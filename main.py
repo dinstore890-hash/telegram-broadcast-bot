@@ -14,7 +14,7 @@ from handlers.start import (
 from handlers.user_broadcast import build_user_broadcast_conversation
 from handlers.account import (
     account_callback, reconnect_callback, logout_callback,
-    build_login_conversation,
+    build_login_conversation, delacc_callback,
 )
 from handlers.groups import (
     groups_callback, removetarget_callback, delete_target_callback,
@@ -53,12 +53,12 @@ async def post_init(app) -> None:
         BotCommand("start", "🚀 Buka Dashboard"),
         BotCommand("refresh", "🔄 Refresh Dashboard"),
     ])
-    ok = await telegram_client.connect()
-    if ok:
-        me = await telegram_client.get_me()
-        logger.info(f"Telethon connected: @{me['username'] if me else 'unknown'}")
+    await telegram_client.load_accounts_from_db()
+    connected = await telegram_client.connect_all()
+    if connected:
+        logger.info(f"Telethon connected: {len(connected)} akun — {connected}")
     else:
-        logger.warning("Telethon: belum login. Gunakan menu 👤 Account untuk login.")
+        logger.warning("Telethon: belum ada akun login. Gunakan menu 👤 Account untuk tambah akun.")
 
 
 async def post_shutdown(app) -> None:
@@ -89,6 +89,7 @@ def build_app():
     app.add_handler(CallbackQueryHandler(account_callback,        pattern="^cb_account$"))
     app.add_handler(CallbackQueryHandler(reconnect_callback,      pattern="^cb_reconnect$"))
     app.add_handler(CallbackQueryHandler(logout_callback,         pattern="^cb_logout$"))
+    app.add_handler(CallbackQueryHandler(delacc_callback,         pattern="^cb_delacc_"))
     app.add_handler(CallbackQueryHandler(groups_callback,         pattern="^cb_groups$"))
     app.add_handler(CallbackQueryHandler(removetarget_callback,   pattern="^cb_removetarget$"))
     app.add_handler(CallbackQueryHandler(delete_target_callback,  pattern="^cb_del_\\d+$"))

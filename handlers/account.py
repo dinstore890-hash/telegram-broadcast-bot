@@ -17,74 +17,105 @@ logger = logging.getLogger(__name__)
 WAIT_PHONE, WAIT_OTP, WAIT_2FA = range(3)
 
 _BACK_BTN = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_account")]
+])
+_BACK_DASHBOARD = InlineKeyboardMarkup([
     [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
 ])
 
+
+# ── Tampilan utama akun ───────────────────────────────────────────────────────
 
 async def account_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
         return
-    await _show_account(query)
+    await _show_accounts(query)
 
 
-async def _show_account(query_or_msg, edit: bool = True) -> None:
-    me = await telegram_client.get_me()
-    if me:
-        text = (
-            f"╭─ 👤 TELEGRAM ACCOUNT\n"
-            f"│\n"
-            f"│  ⤷  Status   : 🟢 Connected\n"
-            f"│  ⤷  Nama     : {me['name']}\n"
-            f"│  ⤷  Username : @{me['username']}\n"
-            f"│  ⤷  Phone    : +{me['phone']}\n"
-            f"╰─"
-        )
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Reconnect", callback_data="cb_reconnect")],
-            [InlineKeyboardButton("🔐 Logout",    callback_data="cb_logout")],
-            [InlineKeyboardButton("⬅️ Kembali",   callback_data="cb_dashboard")],
-        ])
+async def _show_accounts(query_or_msg, edit: bool = True) -> None:
+    accounts = db.get_all_accounts()
+    all_me = await telegram_client.get_all_me()
+    me_by_phone = {m["phone"]: m for m in all_me}
+
+    if accounts:
+        lines = ["╭─ 👥 DAFTAR AKUN TELEGRAM\n│"]
+        for i, acc in enumerate(accounts, 1):
+            phone = acc["phone"]
+            info = me_by_phone.get(phone)
+            if info and info.get("connected"):
+                status = "🟢"
+                name = info.get("name") or acc["name"] or "-"
+                uname = f"@{info['username']}" if info.get("username") else "-"
+            else:
+                status = "🔴"
+                name = acc["name"] or "-"
+                uname = f"@{acc['username']}" if acc["username"] else "-"
+            lines.append(f"│  {i}. {status} {name} ({uname})")
+            lines.append(f"│      📱 {phone}")
+        lines.append("╰─")
+        text = "\n".join(lines)
     else:
         text = (
-            "╭─ 👤 TELEGRAM ACCOUNT\n"
+            "╭─ 👥 DAFTAR AKUN TELEGRAM\n"
             "│\n"
-            "│  ⤷  Status : 🔴 Disconnected\n"
-            "│\n"
-            "╰─ Tekan tombol di bawah untuk login."
+            "│  Belum ada akun terdaftar.\n"
+            "╰─"
         )
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔑 Login Sekarang", callback_data="cb_login_start")],
-            [InlineKeyboardButton("⬅️ Kembali",        callback_data="cb_dashboard")],
-        ])
+
+    # Tombol hapus per akun
+    keyboard = []
+    for acc in accounts:
+        phone = acc["phone"]
+        name = acc["name"] or phone
+        keyboard.append([InlineKeyboardButton(f"🗑 Hapus {name}", callback_data=f"cb_delacc_{phone}")])
+
+    keyboard.append([InlineKeyboardButton("➕ Tambah Akun", callback_data="cb_addacc_start")])
+    keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")])
+
+    markup = InlineKeyboardMarkup(keyboard)
 
     if edit:
-        await query_or_msg.edit_message_text(text, reply_markup=keyboard)
+        await query_or_msg.edit_message_text(text, reply_markup=markup)
     else:
-        await query_or_msg.reply_text(text, reply_markup=keyboard)
+        await query_or_msg.reply_text(text, reply_markup=markup)
 
 
-async def login_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+# ── Hapus akun ────────────────────────────────────────────────────────────────
+
+async def delacc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    phone = query.data.replace("cb_delacc_", "")
+    await telegram_client.remove_client(phone)
+    db.delete_account(phone)
+
+    # Hapus file session
+    import os
+    from config import SESSION_DIR
+    session_file = os.path.join(SESSION_DIR, f"{phone.replace('+', '')}.session")
+    if os.path.exists(session_file):
+        os.remove(session_file)
+
+    db.add_log("INFO", f"Akun {phone} dihapus")
+    await query.answer(f"Akun {phone} dihapus.", show_alert=True)
+    await _show_accounts(query)
+
+
+# ── Tambah akun: mulai ────────────────────────────────────────────────────────
+
+async def addacc_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
         return ConversationHandler.END
 
-    from config import API_ID, API_HASH
-    if not API_ID or not API_HASH:
-        await query.edit_message_text(
-            "╭─ ❌ API BELUM DIISI\n"
-            "│\n"
-            "│ API_ID dan API_HASH belum diisi.\n"
-            "│ Dapatkan di: https://my.telegram.org/apps\n"
-            "╰─",
-            reply_markup=_BACK_BTN,
-        )
-        return ConversationHandler.END
-
     await query.edit_message_text(
-        "╭─ 📱 LOGIN TELEGRAM\n"
+        "╭─ ➕ TAMBAH AKUN BARU\n"
         "│\n"
         "│ Kirim nomor HP format internasional.\n"
         "│ Contoh: +628123456789\n"
@@ -120,8 +151,8 @@ async def wait_phone_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return ConversationHandler.END
 
-    context.user_data["phone"] = phone
-    context.user_data["phone_code_hash"] = phone_code_hash
+    context.user_data["acc_phone"] = phone
+    context.user_data["acc_phone_code_hash"] = phone_code_hash
 
     await msg.edit_text(
         "╭─ ✅ KODE OTP TERKIRIM\n"
@@ -138,16 +169,14 @@ async def wait_otp_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return ConversationHandler.END
 
     code = update.message.text.strip().replace(" ", "")
-    phone = context.user_data.get("phone", "")
-    phone_code_hash = context.user_data.get("phone_code_hash", "")
-
-    logger.info(f"OTP attempt — phone: {phone}, hash: {phone_code_hash[:6]}..., code_len: {len(code)}")
+    phone = context.user_data.get("acc_phone", "")
+    phone_code_hash = context.user_data.get("acc_phone_code_hash", "")
 
     if not phone or not phone_code_hash:
         await update.message.reply_text(
             "╭─ ❌ SESI TIDAK DITEMUKAN\n"
             "│\n"
-            "│ Mulai ulang dengan menekan tombol Login.\n"
+            "│ Mulai ulang dengan menekan tombol Tambah Akun.\n"
             "╰─",
             reply_markup=_BACK_BTN,
         )
@@ -166,22 +195,14 @@ async def wait_otp_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return WAIT_2FA
 
     if success:
-        me = await telegram_client.get_me()
-        db.add_log("INFO", f"Login berhasil: @{me['username'] if me else 'unknown'}")
-        await update.message.reply_text(
-            f"╭─ ✅ LOGIN BERHASIL\n"
-            f"│\n"
-            f"│ Selamat datang, {me['name'] if me else 'User'}!\n"
-            f"╰─",
-            reply_markup=_BACK_BTN,
-        )
+        await _save_new_account(phone, update)
         return ConversationHandler.END
 
     if "Expired" in error_msg or "expired" in error_msg:
         msg = await update.message.reply_text("╭─ ⏳ Kode expired. Mengirim ulang OTP...\n╰─")
         new_hash = await telegram_client.send_code(phone)
         if new_hash:
-            context.user_data["phone_code_hash"] = new_hash
+            context.user_data["acc_phone_code_hash"] = new_hash
             await msg.edit_text(
                 "╭─ ✅ OTP BARU TERKIRIM\n"
                 "│\n"
@@ -189,7 +210,7 @@ async def wait_otp_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
                 "╰─"
             )
         else:
-            await msg.edit_text("╭─ ❌ Gagal kirim ulang OTP.\n╰─ Coba tekan Login lagi.", reply_markup=_BACK_BTN)
+            await msg.edit_text("╭─ ❌ Gagal kirim ulang OTP.\n╰─", reply_markup=_BACK_BTN)
             return ConversationHandler.END
         return WAIT_OTP
 
@@ -207,22 +228,16 @@ async def wait_2fa_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return ConversationHandler.END
 
     password = update.message.text.strip()
+    phone = context.user_data.get("acc_phone", "")
+
     try:
         await update.message.delete()
     except Exception:
         pass
 
-    success = await telegram_client.sign_in_2fa(password)
+    success = await telegram_client.sign_in_2fa(phone, password)
     if success:
-        me = await telegram_client.get_me()
-        db.add_log("INFO", f"Login 2FA berhasil: @{me['username'] if me else 'unknown'}")
-        await update.effective_chat.send_message(
-            f"╭─ ✅ LOGIN BERHASIL\n"
-            f"│\n"
-            f"│ Selamat datang, {me['name'] if me else 'User'}!\n"
-            f"╰─",
-            reply_markup=_BACK_BTN,
-        )
+        await _save_new_account(phone, update)
     else:
         await update.effective_chat.send_message(
             "╭─ ❌ PASSWORD 2FA SALAH\n"
@@ -234,32 +249,52 @@ async def wait_2fa_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     return ConversationHandler.END
 
 
+async def _save_new_account(phone: str, update) -> None:
+    """Simpan akun baru ke DB setelah login berhasil."""
+    me = await telegram_client.get_me(phone)
+    name = me["name"] if me else ""
+    username = me["username"] if me else ""
+    session_name = phone.replace("+", "")
+
+    db.add_account(phone, session_name, name, username)
+    db.add_log("INFO", f"Akun baru ditambahkan: {phone} (@{username})")
+
+    await update.effective_chat.send_message(
+        f"╭─ ✅ AKUN BERHASIL DITAMBAHKAN\n"
+        f"│\n"
+        f"│  Nama     : {name}\n"
+        f"│  Username : @{username}\n"
+        f"│  Phone    : {phone}\n"
+        f"╰─",
+        reply_markup=_BACK_BTN,
+    )
+
+
 async def cancel_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    phone = context.user_data.pop("acc_phone", None)
+    if phone:
+        await telegram_client.remove_client(phone)
     context.user_data.clear()
-    await update.message.reply_text("╭─ ❌ Login dibatalkan.\n╰─", reply_markup=_BACK_BTN)
+    await update.message.reply_text("╭─ ❌ Dibatalkan.\n╰─", reply_markup=_BACK_BTN)
     return ConversationHandler.END
 
+
+# ── Reconnect & Logout (akun utama .env, backward compat) ────────────────────
 
 async def reconnect_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
         return
-    await query.edit_message_text("╭─ ⏳ Mencoba reconnect...\n╰─")
-    ok = await telegram_client.connect()
-    if ok:
-        await _show_account(query)
-    else:
-        await query.edit_message_text(
-            "╭─ ❌ RECONNECT GAGAL\n"
-            "│\n"
-            "│ Session mungkin sudah tidak valid.\n"
-            "╰─ Silakan login ulang.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔑 Login Ulang", callback_data="cb_login_start")],
-                [InlineKeyboardButton("⬅️ Kembali",    callback_data="cb_dashboard")],
-            ]),
-        )
+    await query.edit_message_text("╭─ ⏳ Mencoba reconnect semua akun...\n╰─")
+    connected = await telegram_client.connect_all()
+    await query.edit_message_text(
+        f"╭─ 🔄 RECONNECT\n"
+        f"│\n"
+        f"│  Berhasil: {len(connected)} akun\n"
+        f"╰─",
+        reply_markup=_BACK_BTN,
+    )
 
 
 async def logout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -272,14 +307,14 @@ async def logout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await query.edit_message_text(
         "╭─ 🔐 LOGOUT BERHASIL\n"
         "│\n"
-        "╰─ Berhasil logout dari akun Telegram.",
+        "╰─ Berhasil logout.",
         reply_markup=_BACK_BTN,
     )
 
 
 def build_login_conversation() -> ConversationHandler:
     return ConversationHandler(
-        entry_points=[CallbackQueryHandler(login_start_callback, pattern="^cb_login_start$")],
+        entry_points=[CallbackQueryHandler(addacc_start_callback, pattern="^cb_addacc_start$")],
         states={
             WAIT_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_phone_handler)],
             WAIT_OTP:   [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_otp_handler)],
