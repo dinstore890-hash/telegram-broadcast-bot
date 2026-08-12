@@ -426,6 +426,9 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         f"│\n"
         f"│ Memulai join {len(targets)} grup ke semua akun...\n"
         f"│ Ini mungkin butuh beberapa menit.\n"
+        f"│\n"
+        f"│  ⤷  Total Target  : {db.get_stats()['total_targets']}\n"
+        f"│  ⤷  Target Aktif  : {db.get_stats()['active_targets']}\n"
         f"╰─",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("❌ Batal Sync", callback_data="cb_cancelsync")]
