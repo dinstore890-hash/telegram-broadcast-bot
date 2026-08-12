@@ -22,7 +22,7 @@ SESSION_DIR: str = os.getenv("SESSION_DIR", "sessions")
 LOG_DIR: str = os.getenv("LOG_DIR", "logs")
 
 # ── Broadcast ─────────────────────────────────────────────────────────────────
-BROADCAST_DELAY: float = float(os.getenv("BROADCAST_DELAY", "3.0"))
+BROADCAST_DELAY: float = float(os.getenv("BROADCAST_DELAY", "7.0"))
 TEST_MODE: bool = os.getenv("TEST_MODE", "false").lower() == "true"
 
 # ── QRIS ────────────────────────────────────────────────────────────────────

@@ -449,11 +449,11 @@ async def syncgroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                 entity = await client.get_entity(username)
                 await client(JoinChannelRequest(entity))
                 joined += 1
-                await asyncio.sleep(2)
+                await asyncio.sleep(4)
             except UserAlreadyParticipantError:
                 joined += 1
             except FloodWaitError as e:
-                await asyncio.sleep(e.seconds)
+                await asyncio.sleep(e.seconds + 5)
             except Exception:
                 failed += 1
         total_joined += joined
