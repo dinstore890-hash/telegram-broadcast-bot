@@ -27,6 +27,8 @@ from handlers.broadcast import (
     build_broadcast_conversation,
 )
 from handlers.stats import stats_callback
+from config import is_admin
+import database as db
 from handlers.logs import logs_callback
 from handlers.order import (
     order_callback, pilih_paket_callback,
@@ -75,9 +77,23 @@ def build_app():
         .build()
     )
 
+    async def exporttargets_handler(update, context):
+        if not is_admin(update.effective_user.id):
+            return
+        targets = db.get_active_targets()
+        usernames = [f"@{t['username']}" for t in targets if t["username"]]
+        if not usernames:
+            await update.message.reply_text("Tidak ada target dengan username.")
+            return
+        # Kirim per 100 baris biar tidak kena limit pesan
+        chunk = 100
+        for i in range(0, len(usernames), chunk):
+            await update.message.reply_text("\n".join(usernames[i:i+chunk]))
+
     app.add_handler(CommandHandler("start", start_handler))
     app.add_handler(CommandHandler("refresh", start_handler))
     app.add_handler(CommandHandler("setqris", setqris_handler))
+    app.add_handler(CommandHandler("exporttargets", exporttargets_handler))
 
     app.add_handler(build_login_conversation())
     app.add_handler(build_addtarget_conversation())
