@@ -74,6 +74,7 @@ async def run_broadcast(
     target_ids: list[int],
     progress_callback,
     test_mode: bool = False,
+    phone: str = None,
 ) -> None:
     _state.update({
         "running":      True,
@@ -133,16 +134,16 @@ async def run_broadcast(
                 await progress_callback("progress", _state)
                 continue
 
-            # Pilih akun aktif yang tersedia (prioritas akun utama dari .env)
+            # Gunakan akun yang dipilih, fallback ke akun utama
             from config import PHONE_NUMBER
             from services.telegram_client import get_all_clients
             active_phone = None
             all_clients = get_all_clients()
-            # Prioritas akun utama
-            if PHONE_NUMBER and await is_connected(PHONE_NUMBER):
+            if phone and await is_connected(phone):
+                active_phone = phone
+            elif PHONE_NUMBER and await is_connected(PHONE_NUMBER):
                 active_phone = PHONE_NUMBER
             else:
-                # Fallback ke akun lain yang connected
                 for ph in all_clients:
                     if await is_connected(ph):
                         active_phone = ph

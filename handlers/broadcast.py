@@ -16,7 +16,7 @@ from services import broadcast_service, telegram_client
 logger = logging.getLogger(__name__)
 
 # ConversationHandler states
-SELECT_TARGETS, WAIT_MESSAGE, CONFIRM_BROADCAST = range(20, 23)
+SELECT_TARGETS, WAIT_MESSAGE, CONFIRM_BROADCAST, SELECT_ACCOUNT = range(20, 24)
 
 _BACK_BTN = InlineKeyboardMarkup([
     [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
@@ -65,14 +65,51 @@ async def broadcast_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         return ConversationHandler.END
 
+    accounts = db.get_active_accounts()
+    if not accounts:
+        await query.edit_message_text("╭─ ❌ Belum ada akun terdaftar.\n╰─", reply_markup=_BACK_BTN)
+        return ConversationHandler.END
+
     selected = {t["id"] for t in targets}
     context.user_data["bc_selected"] = selected
     context.user_data["bc_targets"]  = [dict(t) for t in targets]
+
+    keyboard = []
+    for acc in accounts:
+        name = acc["name"] or acc["phone"]
+        keyboard.append([InlineKeyboardButton(
+            f"📱 {name} ({acc['phone']})",
+            callback_data=f"bc_acc_{acc['phone']}"
+        )])
+    keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")])
 
     test_badge = "  🧪 TEST MODE" if TEST_MODE else ""
     await query.edit_message_text(
         f"╭─ 📢 BROADCAST{test_badge}\n"
         f"│\n"
+        f"│  Total target : {len(targets)}\n"
+        f"│\n"
+        f"╰─ Pilih akun untuk broadcast:",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return SELECT_ACCOUNT
+
+
+async def bc_acc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    phone = query.data.replace("bc_acc_", "")
+    context.user_data["bc_phone"] = phone
+
+    test_badge = "  🧪 TEST MODE" if TEST_MODE else ""
+    targets = context.user_data.get("bc_targets", [])
+    await query.edit_message_text(
+        f"╭─ 📢 BROADCAST{test_badge}\n"
+        f"│\n"
+        f"│  Akun        : {phone}\n"
         f"│  Total target : {len(targets)}\n"
         f"│\n"
         f"╰─ Kirim pesan yang ingin dibroadcast.\nKetik /cancel untuk batal."
@@ -182,6 +219,7 @@ async def confirm_broadcast_callback(update: Update, context: ContextTypes.DEFAU
         return ConversationHandler.END
 
     target_ids = [t["id"] for t in chosen]
+    phone = context.user_data.get("bc_phone")
     test_prefix = "🧪 TEST MODE\n" if TEST_MODE else ""
     status_msg = await query.edit_message_text(
         f"{test_prefix}📢 Memulai broadcast ke *{len(chosen)}* target...",
@@ -246,7 +284,7 @@ async def confirm_broadcast_callback(update: Update, context: ContextTypes.DEFAU
 
     context.user_data.clear()
     context.application.create_task(
-        broadcast_service.run_broadcast(message, target_ids, progress_callback, test_mode=TEST_MODE)
+        broadcast_service.run_broadcast(message, target_ids, progress_callback, test_mode=TEST_MODE, phone=phone)
     )
     return ConversationHandler.END
 
@@ -317,6 +355,9 @@ def build_broadcast_conversation() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[CallbackQueryHandler(broadcast_callback, pattern="^cb_broadcast$")],
         states={
+            SELECT_ACCOUNT: [
+                CallbackQueryHandler(bc_acc_callback, pattern="^bc_acc_"),
+            ],
             SELECT_TARGETS: [
                 CallbackQueryHandler(toggle_target_callback, pattern="^bc_toggle_"),
                 CallbackQueryHandler(bc_next_callback,       pattern="^bc_next$"),
