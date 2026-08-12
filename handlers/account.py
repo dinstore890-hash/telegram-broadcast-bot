@@ -182,7 +182,9 @@ async def wait_otp_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         return ConversationHandler.END
 
+    logger.info(f"OTP attempt — phone: {phone}, code: {code}, hash: {phone_code_hash[:6]}...")
     success, needs_2fa, error_msg = await telegram_client.sign_in(phone, code, phone_code_hash)
+    logger.info(f"sign_in result — success: {success}, needs_2fa: {needs_2fa}, error: {error_msg}")
 
     if needs_2fa:
         await update.message.reply_text(
