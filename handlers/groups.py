@@ -836,7 +836,6 @@ async def archiveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_
             success_list.append(target["title"])
         else:
             failed_list.append(f"{target['title']} → {result['error']}")
-
         if i < len(targets):
             await asyncio.sleep(delay)
 
