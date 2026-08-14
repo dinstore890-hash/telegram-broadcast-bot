@@ -103,14 +103,23 @@ async def importgroups_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     context.user_data["import_groups"] = groups
 
-    existing = {t["chat_id"] for t in db.get_all_targets()}
+    existing = {t["chat_id"]: t for t in db.get_all_targets()}
     new_count = sum(1 for g in groups if g["chat_id"] not in existing)
+    update_count = sum(
+        1 for g in groups
+        if g["chat_id"] in existing
+        and (
+            existing[g["chat_id"]]["title"] != g["title"]
+            or existing[g["chat_id"]]["username"] != g["username"]
+        )
+    )
 
     await query.edit_message_text(
         f"╭─ 📥 IMPORT DARI AKUN\n"
         f"│\n"
         f"│  ⤷  Ditemukan       : {len(groups)} grup/channel\n"
         f"│  ⤷  Baru (belum ada): {new_count}\n"
+        f"│  ⤷  Ada perubahan   : {update_count}\n"
         f"│\n"
         f"╰─ Lanjutkan import semua?",
         reply_markup=InlineKeyboardMarkup([
@@ -131,14 +140,15 @@ async def importconfirm_callback(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_text("╭─ ⚠️ Data import tidak ditemukan.\n╰─ Coba lagi.", reply_markup=_BACK_BTN)
         return
 
-    added, skipped = db.bulk_add_targets(groups)
-    db.add_log("INFO", f"Import dari akun: {added} ditambahkan, {skipped} dilewati")
+    added, updated, skipped = db.bulk_upsert_targets(groups)
+    db.add_log("INFO", f"Import dari akun: {added} ditambahkan, {updated} diperbarui, {skipped} dilewati")
 
     await query.edit_message_text(
         f"╭─ ✅ IMPORT SELESAI\n"
         f"│\n"
-        f"│  ⤷  Ditambahkan : {added}\n"
-        f"│  ⤷  Dilewati    : {skipped}\n"
+        f"│  ⤷  Ditambahkan  : {added}\n"
+        f"│  ⤷  Diperbarui   : {updated}\n"
+        f"│  ⤷  Tidak berubah: {skipped}\n"
         f"╰─ Import selesai!",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],

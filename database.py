@@ -158,6 +158,33 @@ def bulk_add_targets(targets: list[dict]) -> tuple[int, int]:
     return added, skipped
 
 
+def bulk_upsert_targets(targets: list[dict]) -> tuple[int, int, int]:
+    """Tambah atau update target. Return (added, updated, skipped)."""
+    added = updated = skipped = 0
+    for t in targets:
+        existing = get_target_by_chat_id(t["chat_id"])
+        if existing is None:
+            ok = add_target(t["chat_id"], t["title"], t["username"], t["chat_type"])
+            if ok:
+                added += 1
+            else:
+                skipped += 1
+        else:
+            # Update title, username, chat_type jika berubah
+            if (existing["title"] != t["title"]
+                    or existing["username"] != t["username"]
+                    or existing["chat_type"] != t["chat_type"]):
+                with get_connection() as conn:
+                    conn.execute(
+                        "UPDATE targets SET title=?, username=?, chat_type=? WHERE chat_id=?",
+                        (t["title"], t["username"], t["chat_type"], t["chat_id"]),
+                    )
+                updated += 1
+            else:
+                skipped += 1
+    return added, updated, skipped
+
+
 def remove_target(target_id: int) -> bool:
     with get_connection() as conn:
         conn.execute("DELETE FROM broadcast_targets WHERE target_id = ?", (target_id,))
