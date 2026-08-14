@@ -310,7 +310,6 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("╭─ ⚠️ Tidak ada link yang dikirim.\n╰─", reply_markup=_BACK_BTN)
         return ConversationHandler.END
 
-    import asyncio
     phone = context.user_data.pop("bulkjoin_phone", None)
     delay = int(db.get_setting("leave_delay", "5"))
     user_id = update.effective_user.id
@@ -323,72 +322,76 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         reply_markup=_STOP_BTN(),
     )
 
-    success, failed = [], []
-    for i, link in enumerate(lines, 1):
-        if _is_cancelled(user_id):
-            break
+    async def _run():
+        success, failed = [], []
+        for i, link in enumerate(lines, 1):
+            if _is_cancelled(user_id):
+                break
+            try:
+                await msg.edit_text(
+                    f"╭─ ⏳ Memproses {i}/{len(lines)}...\n"
+                    f"│ 🔗 {link}\n"
+                    f"│ ✅ {len(success)} berhasil | ❌ {len(failed)} gagal\n"
+                    f"╰─",
+                    reply_markup=_STOP_BTN(),
+                )
+            except Exception:
+                pass
+            result = await telegram_client.join_and_resolve(link, phone)
+            if result.get("error"):
+                failed.append(f"❌ {link} → {result['error']}")
+            else:
+                added = db.add_target(
+                    chat_id=result["chat_id"],
+                    title=result["title"],
+                    username=result["username"],
+                    chat_type=result["chat_type"],
+                )
+                label = result["title"] or result["username"]
+                if added:
+                    success.append(f"✅ {label}")
+                else:
+                    success.append(f"⚠️ {label} (sudah ada)")
+            if i < len(lines):
+                c = await _cancellable_sleep(delay, user_id)
+                if c:
+                    break
+
+        _done = _is_cancelled(user_id)
+        _clear_cancel(user_id)
+        db.add_log("INFO", f"Bulk join: {len(success)} berhasil, {len(failed)} gagal{' (dibatalkan)' if _done else ''}")
+
+        report = (
+            f"╭─ 📊 HASIL BULK JOIN{' (DIBATALKAN)' if _done else ''}\n"
+            f"│\n"
+            f"│  ⤷  Diproses : {len(success) + len(failed)}/{len(lines)}\n"
+            f"│  ⤷  Berhasil : {len(success)}\n"
+            f"│  ⤷  Gagal    : {len(failed)}\n"
+            f"│\n"
+        )
+        if success:
+            report += "│ ✅ Berhasil:\n"
+            for s in success[:20]:
+                report += f"│  {s}\n"
+            if len(success) > 20:
+                report += f"│  ...dan {len(success)-20} lainnya\n"
+        if failed:
+            report += "│\n│ ❌ Gagal:\n"
+            for f_ in failed[:10]:
+                report += f"│  {f_}\n"
+        report += "╰─ Selesai."
         try:
             await msg.edit_text(
-                f"╭─ ⏳ Memproses {i}/{len(lines)}...\n"
-                f"│ 🔗 {link}\n"
-                f"│ ✅ {len(success)} berhasil | ❌ {len(failed)} gagal\n"
-                f"╰─",
-                reply_markup=_STOP_BTN(),
+                report,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
+                    [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
+                ]),
             )
         except Exception:
             pass
-        result = await telegram_client.join_and_resolve(link, phone)
-        if result.get("error"):
-            failed.append(f"❌ {link} → {result['error']}")
-        else:
-            added = db.add_target(
-                chat_id=result["chat_id"],
-                title=result["title"],
-                username=result["username"],
-                chat_type=result["chat_type"],
-            )
-            label = result["title"] or result["username"]
-            if added:
-                success.append(f"✅ {label}")
-            else:
-                success.append(f"⚠️ {label} (sudah ada)")
-        if i < len(lines):
-            cancelled = await _cancellable_sleep(delay, user_id)
-            if cancelled:
-                break
 
-    cancelled = _is_cancelled(user_id)
-    _clear_cancel(user_id)
-
-    report = (
-        f"╭─ 📊 HASIL BULK JOIN{' (DIBATALKAN)' if cancelled else ''}\n"
-        f"│\n"
-        f"│  ⤷  Diproses : {len(success) + len(failed)}/{len(lines)}\n"
-        f"│  ⤷  Berhasil : {len(success)}\n"
-        f"│  ⤷  Gagal    : {len(failed)}\n"
-        f"│\n"
-    )
-    if success:
-        report += "│ ✅ Berhasil:\n"
-        for s in success[:20]:
-            report += f"│  {s}\n"
-        if len(success) > 20:
-            report += f"│  ...dan {len(success)-20} lainnya\n"
-    if failed:
-        report += "│\n│ ❌ Gagal:\n"
-        for f_ in failed[:10]:
-            report += f"│  {f_}\n"
-    report += "╰─ Selesai."
-
-    db.add_log("INFO", f"Bulk join: {len(success)} berhasil, {len(failed)} gagal{' (dibatalkan)' if cancelled else ''}")
-
-    await msg.edit_text(
-        report,
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
-            [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
-        ]),
-    )
+    asyncio.create_task(_run())
     return ConversationHandler.END
 
 
@@ -670,7 +673,6 @@ async def leaveacc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def leaveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Proses leave semua grup dengan delay."""
-    import asyncio
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
@@ -688,72 +690,76 @@ async def leaveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_TY
         await query.edit_message_text("╭─ ⚠️ Tidak ada target.\n╰─", reply_markup=_BACK_BTN)
         return
 
+    user_id = query.from_user.id
+    _clear_cancel(user_id)
+
     msg = await query.edit_message_text(
         f"╭─ 🚪 LEAVE SEDANG BERJALAN\n"
         f"│\n"
         f"│  ⤷  Progress: 0/{len(targets)}\n"
         f"│  ⤷  Delay   : {delay} detik\n"
-        f"╰─ Mohon tunggu..."
+        f"╰─ Mohon tunggu...",
+        reply_markup=_STOP_BTN(),
     )
 
-    success_list, failed_list = [], []
-    user_id = query.from_user.id
-    _clear_cancel(user_id)
-
-    for i, target in enumerate(targets, 1):
-        if _is_cancelled(user_id):
-            break
-        if i % 5 == 0 or i == 1:
-            try:
-                await msg.edit_text(
-                    f"╭─ 🚪 LEAVE SEDANG BERJALAN\n"
-                    f"│\n"
-                    f"│  ⤷  Progress: {i}/{len(targets)}\n"
-                    f"│  ⤷  Berhasil: {len(success_list)}\n"
-                    f"│  ⤷  Gagal   : {len(failed_list)}\n"
-                    f"╰─ Mohon tunggu...",
-                    reply_markup=_STOP_BTN(),
-                )
-            except Exception:
-                pass
-
-        result = await telegram_client.leave_group(target["chat_id"], phone)
-        if result["success"]:
-            success_list.append(target["title"])
-        else:
-            failed_list.append(f"{target['title']} → {result['error']}")
-
-        if i < len(targets):
-            cancelled = await _cancellable_sleep(delay, user_id)
-            if cancelled:
+    async def _run():
+        success_list, failed_list = [], []
+        for i, target in enumerate(targets, 1):
+            if _is_cancelled(user_id):
                 break
+            if i % 5 == 0 or i == 1:
+                try:
+                    await msg.edit_text(
+                        f"╭─ 🚪 LEAVE SEDANG BERJALAN\n"
+                        f"│\n"
+                        f"│  ⤷  Progress: {i}/{len(targets)}\n"
+                        f"│  ⤷  Berhasil: {len(success_list)}\n"
+                        f"│  ⤷  Gagal   : {len(failed_list)}\n"
+                        f"╰─ Mohon tunggu...",
+                        reply_markup=_STOP_BTN(),
+                    )
+                except Exception:
+                    pass
+            result = await telegram_client.leave_group(target["chat_id"], phone)
+            if result["success"]:
+                success_list.append(target["title"])
+            else:
+                failed_list.append(f"{target['title']} → {result['error']}")
+            if i < len(targets):
+                c = await _cancellable_sleep(delay, user_id)
+                if c:
+                    break
 
-    cancelled = _is_cancelled(user_id)
-    _clear_cancel(user_id)
-    db.add_log("INFO", f"Leave grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal{' (dibatalkan)' if cancelled else ''}")
+        _done = _is_cancelled(user_id)
+        _clear_cancel(user_id)
+        db.add_log("INFO", f"Leave grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal{' (dibatalkan)' if _done else ''}")
 
-    report = (
-        f"╭─ {'⚠️ LEAVE DIBATALKAN' if cancelled else '✅ LEAVE SELESAI'}\n"
-        f"│\n"
-        f"│  ⤷  Diproses: {len(success_list) + len(failed_list)}/{len(targets)}\n"
-        f"│  ⤷  Berhasil: {len(success_list)}\n"
-        f"│  ⤷  Gagal   : {len(failed_list)}\n"
-    )
-    if failed_list:
-        report += "│\n│ ❌ Gagal:\n"
-        for f_ in failed_list[:10]:
-            report += f"│  {f_}\n"
-        if len(failed_list) > 10:
-            report += f"│  ...dan {len(failed_list)-10} lainnya\n"
-    report += "╰─ Selesai."
+        report = (
+            f"╭─ {'⚠️ LEAVE DIBATALKAN' if _done else '✅ LEAVE SELESAI'}\n"
+            f"│\n"
+            f"│  ⤷  Diproses: {len(success_list) + len(failed_list)}/{len(targets)}\n"
+            f"│  ⤷  Berhasil: {len(success_list)}\n"
+            f"│  ⤷  Gagal   : {len(failed_list)}\n"
+        )
+        if failed_list:
+            report += "│\n│ ❌ Gagal:\n"
+            for f_ in failed_list[:10]:
+                report += f"│  {f_}\n"
+            if len(failed_list) > 10:
+                report += f"│  ...dan {len(failed_list)-10} lainnya\n"
+        report += "╰─ Selesai."
+        try:
+            await msg.edit_text(
+                report,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
+                    [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
+                ]),
+            )
+        except Exception:
+            pass
 
-    await msg.edit_text(
-        report,
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
-            [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
-        ]),
-    )
+    asyncio.create_task(_run())
 
 
 async def removetarget_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -917,7 +923,6 @@ async def archiveacc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def wait_archive_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    import asyncio
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
 
@@ -939,74 +944,74 @@ async def wait_archive_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         reply_markup=_STOP_BTN(),
     )
 
-    success_list, failed_list = [], []
+    async def _run():
+        success_list, failed_list = [], []
+        for i, identifier in enumerate(lines, 1):
+            if _is_cancelled(user_id):
+                break
+            try:
+                await msg.edit_text(
+                    f"╭─ 📦 ARSIPKAN SEDANG BERJALAN\n"
+                    f"│  ⤷  Progress: {i}/{len(lines)}\n"
+                    f"│  ⤷  {identifier}\n"
+                    f"│  ⤷  ✅ {len(success_list)} | ❌ {len(failed_list)}\n"
+                    f"╰─ Mohon tunggu...",
+                    reply_markup=_STOP_BTN(),
+                )
+            except Exception:
+                pass
+            info = await telegram_client.resolve_target(identifier, phone)
+            if not info:
+                failed_list.append(f"{identifier} → Tidak dapat diakses")
+            else:
+                # Skip kalau sudah diarsipkan sebelumnya
+                if db.is_archived(info["chat_id"]):
+                    success_list.append(f"⏭️ {info['title'] or identifier} (sudah diarsipkan)")
+                else:
+                    result = await telegram_client.archive_group(info["chat_id"], phone, archive=True)
+                    if result["success"]:
+                        db.mark_archived(info["chat_id"], info["title"] or "", info.get("username", ""))
+                        success_list.append(info["title"] or identifier)
+                    else:
+                        failed_list.append(f"{identifier} → {result['error']}")
 
-    for i, identifier in enumerate(lines, 1):
-        if _is_cancelled(user_id):
-            break
-        username = identifier.lstrip("@").strip()
-        if identifier.startswith("https://t.me/"):
-            username = identifier.replace("https://t.me/", "").split("/")[0]
+            if i < len(lines):
+                c = await _cancellable_sleep(delay, user_id)
+                if c:
+                    break
+
+        _done = _is_cancelled(user_id)
+        _clear_cancel(user_id)
+        db.add_log("INFO", f"Arsipkan grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal{' (dibatalkan)' if _done else ''}")
+
+        report = (
+            f"╭─ {'⚠️ ARSIPKAN DIBATALKAN' if _done else '✅ ARSIPKAN SELESAI'}\n"
+            f"│\n"
+            f"│  ⤷  Diproses: {len(success_list) + len(failed_list)}/{len(lines)}\n"
+            f"│  ⤷  Berhasil: {len(success_list)}\n"
+            f"│  ⤷  Gagal   : {len(failed_list)}\n"
+        )
+        if failed_list:
+            report += "│\n│ ❌ Gagal:\n"
+            for f_ in failed_list[:10]:
+                report += f"│  {f_}\n"
+            if len(failed_list) > 10:
+                report += f"│  ...dan {len(failed_list)-10} lainnya\n"
+        report += "╰─ Selesai."
 
         try:
             await msg.edit_text(
-                f"╭─ 📦 ARSIPKAN SEDANG BERJALAN\n"
-                f"│  ⤷  Progress: {i}/{len(lines)}\n"
-                f"│  ⤷  {identifier}\n"
-                f"│  ⤷  ✅ {len(success_list)} | ❌ {len(failed_list)}\n"
-                f"╰─ Mohon tunggu...",
-                reply_markup=_STOP_BTN(),
+                report,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📦 Arsipkan Lagi", callback_data="cb_archivegroups")],
+                    [InlineKeyboardButton("📋 Lihat Daftar",  callback_data="cb_groups")],
+                    [InlineKeyboardButton("⬅️ Kembali",       callback_data="cb_dashboard")],
+                ]),
             )
         except Exception:
             pass
 
-        info = await telegram_client.resolve_target(identifier, phone)
-        if not info:
-            failed_list.append(f"{identifier} → Tidak dapat diakses")
-        else:
-            # Skip kalau sudah diarsipkan sebelumnya
-            if db.is_archived(info["chat_id"]):
-                success_list.append(f"⏭️ {info['title'] or identifier} (sudah diarsipkan)")
-            else:
-                result = await telegram_client.archive_group(info["chat_id"], phone, archive=True)
-                if result["success"]:
-                    db.mark_archived(info["chat_id"], info["title"] or "", info.get("username", ""))
-                    success_list.append(info["title"] or identifier)
-                else:
-                    failed_list.append(f"{identifier} → {result['error']}")
-
-        if i < len(lines):
-            cancelled = await _cancellable_sleep(delay, user_id)
-            if cancelled:
-                break
-
-    cancelled = _is_cancelled(user_id)
-    _clear_cancel(user_id)
-    db.add_log("INFO", f"Arsipkan grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal{' (dibatalkan)' if cancelled else ''}")
-
-    report = (
-        f"╭─ {'⚠️ ARSIPKAN DIBATALKAN' if cancelled else '✅ ARSIPKAN SELESAI'}\n"
-        f"│\n"
-        f"│  ⤷  Diproses: {len(success_list) + len(failed_list)}/{len(lines)}\n"
-        f"│  ⤷  Berhasil: {len(success_list)}\n"
-        f"│  ⤷  Gagal   : {len(failed_list)}\n"
-    )
-    if failed_list:
-        report += "│\n│ ❌ Gagal:\n"
-        for f_ in failed_list[:10]:
-            report += f"│  {f_}\n"
-        if len(failed_list) > 10:
-            report += f"│  ...dan {len(failed_list)-10} lainnya\n"
-    report += "╰─ Selesai."
-
-    await msg.edit_text(
-        report,
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📦 Arsipkan Lagi", callback_data="cb_archivegroups")],
-            [InlineKeyboardButton("📋 Lihat Daftar",  callback_data="cb_groups")],
-            [InlineKeyboardButton("⬅️ Kembali",       callback_data="cb_dashboard")],
-        ]),
-    )
+    asyncio.create_task(_run())
     return ConversationHandler.END
 
 
