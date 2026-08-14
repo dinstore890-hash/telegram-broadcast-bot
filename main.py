@@ -9,7 +9,8 @@ from services import telegram_client
 
 from handlers.start import (
     start_handler, dashboard_callback, settings_callback,
-    lisensi_callback,
+    lisensi_callback, set_broadcast_delay_callback,
+    build_settings_conversation,
 )
 from handlers.user_broadcast import build_user_broadcast_conversation
 from handlers.account import (
@@ -97,6 +98,7 @@ def build_app():
     app.add_handler(CommandHandler("exporttargets", exporttargets_handler))
 
     app.add_handler(build_login_conversation())
+    app.add_handler(build_settings_conversation())
     app.add_handler(build_leave_conversation())
     app.add_handler(build_addtarget_conversation())
     app.add_handler(build_broadcast_conversation())

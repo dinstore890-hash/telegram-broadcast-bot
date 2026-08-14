@@ -264,17 +264,111 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     test_status = "🟢 AKTIF" if TEST_MODE else "🔴 NONAKTIF"
     from config import BROADCAST_DELAY
+    broadcast_delay = db.get_setting("broadcast_delay", str(BROADCAST_DELAY))
+    leave_delay     = db.get_setting("leave_delay", "5")
+
     text = (
         f"╭─ ⚙️ PENGATURAN\n"
         f"│\n"
-        f"│  ⤷  Test Mode       : {test_status}\n"
-        f"│  ⤷  Broadcast Delay : {BROADCAST_DELAY}s\n"
+        f"│  ⤷  Test Mode        : {test_status}\n"
+        f"│  ⤷  Broadcast Delay  : {broadcast_delay}s\n"
+        f"│  ⤷  Leave Delay      : {leave_delay}s\n"
         f"│\n"
-        f"╰─ Ubah via file .env lalu restart bot."
+        f"╰─ Pilih yang ingin diubah:"
     )
     await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
+            [
+                InlineKeyboardButton("⏱️ Broadcast Delay", callback_data="cb_set_broadcast_delay"),
+                InlineKeyboardButton("⏱️ Leave Delay",     callback_data="cb_leavedelay"),
+            ],
+            [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
         ]),
+    )
+
+
+# ── Ubah Broadcast Delay ──────────────────────────────────────────────────────
+
+WAIT_BROADCAST_DELAY = 50
+
+_SETTINGS_BACK = InlineKeyboardMarkup([
+    [InlineKeyboardButton("⚙️ Pengaturan", callback_data="cb_settings")]
+])
+
+
+async def set_broadcast_delay_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from telegram.ext import ConversationHandler
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    from config import BROADCAST_DELAY
+    current = db.get_setting("broadcast_delay", str(BROADCAST_DELAY))
+    await query.edit_message_text(
+        f"╭─ ⏱️ ATUR BROADCAST DELAY\n"
+        f"│\n"
+        f"│  ⤷  Delay saat ini: {current} detik\n"
+        f"│\n"
+        f"│ Kirim angka delay baru (detik).\n"
+        f"│ Contoh: 3 atau 5\n"
+        f"│ (Disarankan 3-10 detik)\n"
+        f"╰─ Ketik /cancel untuk batal."
+    )
+    return WAIT_BROADCAST_DELAY
+
+
+async def wait_broadcast_delay(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from telegram.ext import ConversationHandler
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    text = update.message.text.strip()
+    try:
+        delay = float(text)
+        if delay < 0.5 or delay > 60:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text(
+            "╭─ ⚠️ Input tidak valid.\n│ Masukkan angka 0.5-60.\n╰─",
+            reply_markup=_SETTINGS_BACK,
+        )
+        return ConversationHandler.END
+
+    db.set_setting("broadcast_delay", str(delay))
+    db.add_log("INFO", f"Broadcast delay diubah: {delay} detik")
+
+    await update.message.reply_text(
+        f"╭─ ✅ DELAY DIPERBARUI\n"
+        f"│\n"
+        f"│  ⤷  Broadcast delay: {delay} detik\n"
+        f"╰─",
+        reply_markup=_SETTINGS_BACK,
+    )
+    return ConversationHandler.END
+
+
+async def cancel_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from telegram.ext import ConversationHandler
+    await update.message.reply_text("╭─ ❌ Dibatalkan.\n╰─", reply_markup=_SETTINGS_BACK)
+    return ConversationHandler.END
+
+
+def build_settings_conversation():
+    from telegram.ext import ConversationHandler, CallbackQueryHandler, MessageHandler, filters
+    return ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(set_broadcast_delay_callback, pattern="^cb_set_broadcast_delay$"),
+        ],
+        states={
+            WAIT_BROADCAST_DELAY: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, wait_broadcast_delay)
+            ],
+        },
+        fallbacks=[MessageHandler(filters.COMMAND, cancel_settings)],
+        per_chat=True,
+        per_user=True,
+        per_message=False,
+        allow_reentry=True,
     )

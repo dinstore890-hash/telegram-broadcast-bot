@@ -6,7 +6,11 @@ logger = logging.getLogger(__name__)
 
 
 class RateLimiter:
-    def __init__(self, delay: float = BROADCAST_DELAY):
+    def __init__(self, delay: float = None):
+        # Jika tidak ada delay yang diberikan, baca dari DB (dengan fallback ke config)
+        if delay is None:
+            import database as db
+            delay = float(db.get_setting("broadcast_delay", str(BROADCAST_DELAY)))
         self.delay = delay
 
     async def wait(self) -> None:
