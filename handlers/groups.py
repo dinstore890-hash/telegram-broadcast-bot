@@ -270,12 +270,24 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await update.message.reply_text("╭─ ⚠️ Tidak ada link yang dikirim.\n╰─", reply_markup=_BACK_BTN)
         return ConversationHandler.END
 
-    msg = await update.message.reply_text(f"╭─ ⏳ Memproses 0/{len(lines)}...\n╰─")
-
+    import asyncio
     phone = context.user_data.pop("bulkjoin_phone", None)
+    delay = int(db.get_setting("leave_delay", "5"))
+
+    msg = await update.message.reply_text(
+        f"╭─ ⏳ Memproses 0/{len(lines)}...\n"
+        f"│ Delay: {delay} detik per grup\n"
+        f"╰─"
+    )
+
     success, failed = [], []
     for i, link in enumerate(lines, 1):
-        await msg.edit_text(f"╭─ ⏳ Memproses {i}/{len(lines)}...\n│ 🔗 {link}\n╰─")
+        await msg.edit_text(
+            f"╭─ ⏳ Memproses {i}/{len(lines)}...\n"
+            f"│ 🔗 {link}\n"
+            f"│ ✅ {len(success)} berhasil | ❌ {len(failed)} gagal\n"
+            f"╰─"
+        )
         result = await telegram_client.join_and_resolve(link, phone)
         if result.get("error"):
             failed.append(f"❌ {link} → {result['error']}")
@@ -291,6 +303,9 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 success.append(f"✅ {label}")
             else:
                 success.append(f"⚠️ {label} (sudah ada)")
+
+        if i < len(lines):
+            await asyncio.sleep(delay)
 
     report = (
         f"╭─ 📊 HASIL BULK JOIN\n"
