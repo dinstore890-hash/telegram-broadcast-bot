@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 WAIT_TARGET_INPUT = 10
 WAIT_BULK_INPUT   = 11
 WAIT_LEAVE_DELAY  = 12
+WAIT_ARCHIVE_INPUT = 13
 
 _BACK_BTN = InlineKeyboardMarkup([
     [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
@@ -737,11 +738,11 @@ def build_addtarget_conversation() -> ConversationHandler:
 
 # ── Arsipkan Grup ─────────────────────────────────────────────────────────────
 
-async def archivegroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def archivegroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
-        return
+        return ConversationHandler.END
 
     accounts = db.get_active_accounts()
     if not accounts:
@@ -749,11 +750,9 @@ async def archivegroups_callback(update: Update, context: ContextTypes.DEFAULT_T
             "╭─ ❌ TIDAK ADA AKUN\n│\n│ Belum ada akun terdaftar.\n╰─",
             reply_markup=_BACK_BTN,
         )
-        return
+        return ConversationHandler.END
 
     delay = db.get_setting("leave_delay", "5")
-    targets = db.get_all_targets()
-
     keyboard = []
     for acc in accounts:
         name = acc["name"] or acc["phone"]
@@ -764,94 +763,94 @@ async def archivegroups_callback(update: Update, context: ContextTypes.DEFAULT_T
     keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_groups")])
 
     await query.edit_message_text(
-        f"╭─ 📦 ARSIPKAN GRUP OTOMATIS\n"
+        f"╭─ 📦 ARSIPKAN GRUP\n"
         f"│\n"
-        f"│  ⤷  Total target : {len(targets)} grup\n"
-        f"│  ⤷  Delay        : {delay} detik\n"
+        f"│  ⤷  Delay: {delay} detik\n"
         f"│\n"
         f"│ Pilih akun yang akan arsipkan:\n"
         f"╰─",
         reply_markup=InlineKeyboardMarkup(keyboard),
     )
+    return ConversationHandler.END
 
 
-async def archiveacc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def archiveacc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     if not is_admin(query.from_user.id):
-        return
+        return ConversationHandler.END
 
     phone = query.data.replace("cb_archiveacc_", "")
-    targets = db.get_all_targets()
-    delay = db.get_setting("leave_delay", "5")
     context.user_data["archive_phone"] = phone
+    delay = db.get_setting("leave_delay", "5")
 
     await query.edit_message_text(
-        f"╭─ 📦 KONFIRMASI ARSIPKAN\n"
+        f"╭─ 📦 ARSIPKAN GRUP\n"
         f"│\n"
-        f"│  ⤷  Akun    : {phone}\n"
-        f"│  ⤷  Target  : {len(targets)} grup\n"
-        f"│  ⤷  Delay   : {delay} detik per grup\n"
+        f"│  ⤷  Akun : {phone}\n"
+        f"│  ⤷  Delay: {delay} detik\n"
         f"│\n"
-        f"│ Semua grup dalam daftar target\n"
-        f"│ akan dipindah ke Arsip.\n"
-        f"╰─ Yakin lanjutkan?",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Ya, Arsipkan Semua", callback_data="cb_archiveconfirm")],
-            [InlineKeyboardButton("❌ Batal",              callback_data="cb_archivegroups")],
-        ]),
+        f"│ Kirim daftar username/link,\n"
+        f"│ satu per baris. Contoh:\n"
+        f"│\n"
+        f"│  @namagrup\n"
+        f"│  https://t.me/namagrup\n"
+        f"│\n"
+        f"╰─ Ketik /cancel untuk batal."
     )
+    return WAIT_ARCHIVE_INPUT
 
 
-async def archiveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def wait_archive_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     import asyncio
-    query = update.callback_query
-    await query.answer()
-    if not is_admin(query.from_user.id):
-        return
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    lines = [l.strip() for l in update.message.text.strip().splitlines() if l.strip()]
+    if not lines:
+        await update.message.reply_text("╭─ ⚠️ Tidak ada username yang dikirim.\n╰─", reply_markup=_BACK_BTN)
+        return ConversationHandler.END
 
     phone = context.user_data.pop("archive_phone", None)
-    if not phone:
-        await query.edit_message_text("╭─ ⚠️ Data tidak ditemukan.\n╰─ Coba lagi.", reply_markup=_BACK_BTN)
-        return
-
-    targets = db.get_all_targets()
     delay = int(db.get_setting("leave_delay", "5"))
 
-    if not targets:
-        await query.edit_message_text("╭─ ⚠️ Tidak ada target.\n╰─", reply_markup=_BACK_BTN)
-        return
-
-    msg = await query.edit_message_text(
+    msg = await update.message.reply_text(
         f"╭─ 📦 ARSIPKAN SEDANG BERJALAN\n"
-        f"│\n"
-        f"│  ⤷  Progress: 0/{len(targets)}\n"
+        f"│  ⤷  Progress: 0/{len(lines)}\n"
         f"│  ⤷  Delay   : {delay} detik\n"
         f"╰─ Mohon tunggu..."
     )
 
     success_list, failed_list = [], []
 
-    for i, target in enumerate(targets, 1):
-        if i % 5 == 0 or i == 1:
-            try:
-                await msg.edit_text(
-                    f"╭─ 📦 ARSIPKAN SEDANG BERJALAN\n"
-                    f"│\n"
-                    f"│  ⤷  Progress: {i}/{len(targets)}\n"
-                    f"│  ⤷  Berhasil: {len(success_list)}\n"
-                    f"│  ⤷  Gagal   : {len(failed_list)}\n"
-                    f"╰─ Mohon tunggu..."
-                )
-            except Exception:
-                pass
+    for i, identifier in enumerate(lines, 1):
+        # Resolve dulu untuk dapat chat_id
+        username = identifier.lstrip("@").strip()
+        if identifier.startswith("https://t.me/"):
+            username = identifier.replace("https://t.me/", "").split("/")[0]
 
-        result = await telegram_client.archive_group(target["chat_id"], phone, archive=True)
-        if result["success"]:
-            success_list.append(target["title"])
+        try:
+            await msg.edit_text(
+                f"╭─ 📦 ARSIPKAN SEDANG BERJALAN\n"
+                f"│  ⤷  Progress: {i}/{len(lines)}\n"
+                f"│  ⤷  {identifier}\n"
+                f"│  ⤷  ✅ {len(success_list)} | ❌ {len(failed_list)}\n"
+                f"╰─ Mohon tunggu..."
+            )
+        except Exception:
+            pass
+
+        info = await telegram_client.resolve_target(identifier, phone)
+        if not info:
+            failed_list.append(f"{identifier} → Tidak dapat diakses")
         else:
-            failed_list.append(f"{target['title']} → {result['error']}")
-        if i < len(targets):
+            result = await telegram_client.archive_group(info["chat_id"], phone, archive=True)
+            if result["success"]:
+                success_list.append(info["title"] or identifier)
+            else:
+                failed_list.append(f"{identifier} → {result['error']}")
+
+        if i < len(lines):
             await asyncio.sleep(delay)
 
     db.add_log("INFO", f"Arsipkan grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal")
@@ -859,7 +858,7 @@ async def archiveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_
     report = (
         f"╭─ ✅ ARSIPKAN SELESAI\n"
         f"│\n"
-        f"│  ⤷  Total   : {len(targets)}\n"
+        f"│  ⤷  Total   : {len(lines)}\n"
         f"│  ⤷  Berhasil: {len(success_list)}\n"
         f"│  ⤷  Gagal   : {len(failed_list)}\n"
     )
@@ -874,7 +873,27 @@ async def archiveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_
     await msg.edit_text(
         report,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
-            [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
+            [InlineKeyboardButton("📦 Arsipkan Lagi", callback_data="cb_archivegroups")],
+            [InlineKeyboardButton("📋 Lihat Daftar",  callback_data="cb_groups")],
+            [InlineKeyboardButton("⬅️ Kembali",       callback_data="cb_dashboard")],
         ]),
+    )
+    return ConversationHandler.END
+
+
+def build_archive_conversation() -> ConversationHandler:
+    return ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(archiveacc_callback, pattern="^cb_archiveacc_"),
+        ],
+        states={
+            WAIT_ARCHIVE_INPUT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, wait_archive_input)
+            ],
+        },
+        fallbacks=[MessageHandler(filters.COMMAND, cancel_add)],
+        per_chat=True,
+        per_user=True,
+        per_message=False,
+        allow_reentry=True,
     )

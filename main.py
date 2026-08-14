@@ -22,8 +22,8 @@ from handlers.groups import (
     importgroups_callback, importconfirm_callback,
     bulkjoin_callback, exporttargets_callback, activateall_callback,
     leavegroups_callback, leavedelay_callback, leaveacc_callback, leaveconfirm_callback,
-    archivegroups_callback, archiveacc_callback, archiveconfirm_callback,
-    build_addtarget_conversation, build_leave_conversation,
+    archivegroups_callback, archiveacc_callback,
+    build_addtarget_conversation, build_leave_conversation, build_archive_conversation,
 )
 from handlers.broadcast import (
     pause_callback, resume_callback, cancel_running_callback,
@@ -101,6 +101,7 @@ def build_app():
     app.add_handler(build_login_conversation())
     app.add_handler(build_settings_conversation())
     app.add_handler(build_leave_conversation())
+    app.add_handler(build_archive_conversation())
     app.add_handler(build_addtarget_conversation())
     app.add_handler(build_broadcast_conversation())
     app.add_handler(build_order_conversation())
@@ -123,7 +124,6 @@ def build_app():
     app.add_handler(CallbackQueryHandler(leaveconfirm_callback,   pattern="^cb_leaveconfirm$"))
     app.add_handler(CallbackQueryHandler(archivegroups_callback,  pattern="^cb_archivegroups$"))
     app.add_handler(CallbackQueryHandler(archiveacc_callback,     pattern="^cb_archiveacc_"))
-    app.add_handler(CallbackQueryHandler(archiveconfirm_callback, pattern="^cb_archiveconfirm$"))
     app.add_handler(CallbackQueryHandler(pause_callback,          pattern="^cb_pause$"))
     app.add_handler(CallbackQueryHandler(resume_callback,         pattern="^bc_resume$"))
     app.add_handler(CallbackQueryHandler(cancel_running_callback, pattern="^bc_cancel$"))
