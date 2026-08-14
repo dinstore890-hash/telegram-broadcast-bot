@@ -330,7 +330,6 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 success.append(f"✅ {label}")
             else:
                 success.append(f"⚠️ {label} (sudah ada)")
-
         if i < len(lines):
             await asyncio.sleep(delay)
 
@@ -939,11 +938,16 @@ async def wait_archive_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if not info:
             failed_list.append(f"{identifier} → Tidak dapat diakses")
         else:
-            result = await telegram_client.archive_group(info["chat_id"], phone, archive=True)
-            if result["success"]:
-                success_list.append(info["title"] or identifier)
+            # Skip kalau sudah diarsipkan sebelumnya
+            if db.is_archived(info["chat_id"]):
+                success_list.append(f"⏭️ {info['title'] or identifier} (sudah diarsipkan)")
             else:
-                failed_list.append(f"{identifier} → {result['error']}")
+                result = await telegram_client.archive_group(info["chat_id"], phone, archive=True)
+                if result["success"]:
+                    db.mark_archived(info["chat_id"], info["title"] or "", info.get("username", ""))
+                    success_list.append(info["title"] or identifier)
+                else:
+                    failed_list.append(f"{identifier} → {result['error']}")
 
         if i < len(lines):
             await asyncio.sleep(delay)
