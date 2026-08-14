@@ -320,25 +320,20 @@ async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
     username = username.lstrip("@")
 
     async def _do_join(ent=None):
-        """Coba join, handle FloodWait dengan tunggu + retry."""
-        for attempt in range(2):
-            try:
-                if invite_hash:
-                    await client(ImportChatInviteRequest(invite_hash))
-                elif ent and isinstance(ent, Channel):
-                    await client(JoinChannelRequest(ent))
-                return None  # sukses
-            except UserAlreadyParticipantError:
-                return None  # sudah member
-            except FloodWaitError as e:
-                wait = e.seconds + 5
-                logger.warning(f"FloodWait {e.seconds}s saat join [{identifier}], tunggu {wait}s...")
-                await asyncio.sleep(wait)
-                if attempt == 1:
-                    return f"FloodWait: harus tunggu {e.seconds}s"
-            except Exception as e:
-                return f"{type(e).__name__}: {e}"
-        return "Gagal setelah retry"
+        """Coba join, return error string atau None kalau sukses."""
+        try:
+            if invite_hash:
+                await client(ImportChatInviteRequest(invite_hash))
+            elif ent and isinstance(ent, Channel):
+                await client(JoinChannelRequest(ent))
+            return None  # sukses
+        except UserAlreadyParticipantError:
+            return None  # sudah member
+        except FloodWaitError as e:
+            logger.warning(f"FloodWait {e.seconds}s saat join [{identifier}], skip")
+            return f"FloodWait {e.seconds}s — coba lagi nanti"
+        except Exception as e:
+            return f"{type(e).__name__}: {e}"
 
     try:
         # Coba resolve entity
