@@ -51,15 +51,14 @@ def get_all_clients() -> dict[str, TelegramClient]:
 
 
 async def load_accounts_from_db() -> None:
-    """Load semua akun dari DB ke _clients saat startup."""
+    """Load semua akun dari DB dan .env ke _clients saat startup."""
     import database as db
 
-    # Load akun utama dari .env ke DB kalau belum ada
+    # Load akun utama dari .env
     if _PRIMARY_PHONE:
-        if not db.get_account_by_phone(_PRIMARY_PHONE):
-            string_session = os.getenv("STRING_SESSION", "").strip()
-            if string_session:
-                from telethon.sessions import StringSession
+        string_session = os.getenv("STRING_SESSION", "").strip()
+        if string_session:
+            if _PRIMARY_PHONE not in _clients:
                 client = TelegramClient(StringSession(string_session), API_ID, API_HASH)
                 await client.connect()
                 if await client.is_user_authorized():
@@ -67,23 +66,46 @@ async def load_accounts_from_db() -> None:
                     name = f"{me.first_name or ''} {me.last_name or ''}".strip()
                     username = me.username or ""
                     session_name = _PRIMARY_PHONE.replace("+", "")
-                    db.add_account(_PRIMARY_PHONE, session_name, name, username)
+                    db.add_account(_PRIMARY_PHONE, session_name, name, username, string_session=string_session)
                     _clients[_PRIMARY_PHONE] = client
                     logger.info(f"Akun utama .env dimuat: {_PRIMARY_PHONE}")
-            else:
-                session_name = _PRIMARY_PHONE.replace("+", "")
-                db.add_account(_PRIMARY_PHONE, session_name)
 
+    # Load akun tambahan dari env STRING_SESSION_2, STRING_SESSION_3, dst
+    for i in range(2, 10):
+        ss = os.getenv(f"STRING_SESSION_{i}", "").strip()
+        ph = os.getenv(f"PHONE_NUMBER_{i}", "").strip()
+        if ss and ph and ph not in _clients:
+            try:
+                client = TelegramClient(StringSession(ss), API_ID, API_HASH)
+                await client.connect()
+                if await client.is_user_authorized():
+                    me = await client.get_me()
+                    name = f"{me.first_name or ''} {me.last_name or ''}".strip()
+                    username = me.username or ""
+                    session_name = ph.replace("+", "")
+                    db.add_account(ph, session_name, name, username, string_session=ss)
+                    _clients[ph] = client
+                    logger.info(f"Akun tambahan env dimuat: {ph} ({name})")
+                else:
+                    logger.warning(f"Akun {ph} tidak authorized")
+            except Exception as e:
+                logger.error(f"load_accounts_from_db error [{ph}]: {e}")
+
+    # Load akun dari DB yang punya string_session
     accounts = db.get_active_accounts()
     for acc in accounts:
         phone = acc["phone"]
         if phone not in _clients:
             if acc["string_session"]:
-                from telethon.sessions import StringSession
-                _clients[phone] = TelegramClient(StringSession(acc["string_session"]), API_ID, API_HASH)
+                try:
+                    _clients[phone] = TelegramClient(StringSession(acc["string_session"]), API_ID, API_HASH)
+                    logger.info(f"Akun DB dimuat: {phone}")
+                except Exception as e:
+                    logger.error(f"load DB akun [{phone}]: {e}")
             else:
                 _clients[phone] = _make_client(acc["session_name"])
-    logger.info(f"Loaded {len(accounts)} akun dari DB")
+
+    logger.info(f"Total akun loaded: {len(_clients)} — {list(_clients.keys())}")
 
 
 async def connect_all() -> list[str]:
