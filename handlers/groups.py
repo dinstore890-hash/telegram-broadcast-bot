@@ -966,7 +966,9 @@ async def wait_archive_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 if db.is_archived(info["chat_id"]):
                     success_list.append(f"⏭️ {info['title'] or identifier} (sudah diarsipkan)")
                 else:
-                    result = await telegram_client.archive_group(info["chat_id"], phone, archive=True)
+                    # Pakai username langsung biar resolve lebih reliable
+                    target_id = info.get("username") or info["chat_id"]
+                    result = await telegram_client.archive_group(target_id, phone, archive=True)
                     if result["success"]:
                         db.mark_archived(info["chat_id"], info["title"] or "", info.get("username", ""))
                         success_list.append(info["title"] or identifier)
