@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 WAIT_TARGET_INPUT = 10
 WAIT_BULK_INPUT   = 11
+WAIT_LEAVE_DELAY  = 12
 
 _BACK_BTN = InlineKeyboardMarkup([
     [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
@@ -65,7 +66,10 @@ async def _show_groups(query) -> None:
             InlineKeyboardButton("✅ Aktifkan Semua", callback_data="cb_activateall"),
             InlineKeyboardButton("📥 Import dari Akun", callback_data="cb_importgroups"),
         ],
-        [InlineKeyboardButton("📋 Bulk Join & Tambah",  callback_data="cb_bulkjoin")],
+        [
+            InlineKeyboardButton("🚪 Leave Grup",    callback_data="cb_leavegroups"),
+            InlineKeyboardButton("📋 Bulk Join & Tambah", callback_data="cb_bulkjoin"),
+        ],
         [InlineKeyboardButton("📤 Export Target",        callback_data="cb_exporttargets")],
         [InlineKeyboardButton("🔄 Refresh",             callback_data="cb_groups")],
         [InlineKeyboardButton("⬅️ Kembali",             callback_data="cb_dashboard")],
@@ -415,6 +419,212 @@ async def cancel_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+# ── Leave Grup ────────────────────────────────────────────────────────────────
+
+async def leavegroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Tampilkan pilihan akun untuk leave grup."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    accounts = db.get_active_accounts()
+    if not accounts:
+        await query.edit_message_text(
+            "╭─ ❌ TIDAK ADA AKUN\n│\n│ Belum ada akun terdaftar.\n╰─",
+            reply_markup=_BACK_BTN,
+        )
+        return ConversationHandler.END
+
+    delay = db.get_setting("leave_delay", "5")
+    targets = db.get_all_targets()
+
+    keyboard = []
+    for acc in accounts:
+        name = acc["name"] or acc["phone"]
+        keyboard.append([InlineKeyboardButton(
+            f"📱 {name} ({acc['phone']})",
+            callback_data=f"cb_leaveacc_{acc['phone']}"
+        )])
+    keyboard.append([InlineKeyboardButton("⏱️ Atur Delay", callback_data="cb_leavedelay")])
+    keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_groups")])
+
+    await query.edit_message_text(
+        f"╭─ 🚪 LEAVE GRUP OTOMATIS\n"
+        f"│\n"
+        f"│  ⤷  Total target : {len(targets)} grup\n"
+        f"│  ⤷  Delay leave  : {delay} detik\n"
+        f"│\n"
+        f"│ Pilih akun yang akan leave:\n"
+        f"╰─",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+    return ConversationHandler.END
+
+
+async def leavedelay_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Minta input delay leave."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    current = db.get_setting("leave_delay", "5")
+    await query.edit_message_text(
+        f"╭─ ⏱️ ATUR DELAY LEAVE\n"
+        f"│\n"
+        f"│  ⤷  Delay saat ini: {current} detik\n"
+        f"│\n"
+        f"│ Kirim angka delay baru (detik).\n"
+        f"│ Contoh: 3 atau 5\n"
+        f"│ (Disarankan 3-10 detik)\n"
+        f"╰─ Ketik /cancel untuk batal."
+    )
+    return WAIT_LEAVE_DELAY
+
+
+async def wait_leave_delay(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Simpan delay baru."""
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    text = update.message.text.strip()
+    try:
+        delay = int(text)
+        if delay < 1 or delay > 60:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text(
+            "╭─ ⚠️ Input tidak valid.\n│ Masukkan angka 1-60.\n╰─",
+            reply_markup=_BACK_BTN,
+        )
+        return ConversationHandler.END
+
+    db.set_setting("leave_delay", str(delay))
+    db.add_log("INFO", f"Delay leave diubah: {delay} detik")
+
+    await update.message.reply_text(
+        f"╭─ ✅ DELAY DIPERBARUI\n"
+        f"│\n"
+        f"│  ⤷  Delay leave: {delay} detik\n"
+        f"╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚪 Leave Grup", callback_data="cb_leavegroups")],
+            [InlineKeyboardButton("⬅️ Kembali",    callback_data="cb_groups")],
+        ]),
+    )
+    return ConversationHandler.END
+
+
+async def leaveacc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Konfirmasi sebelum leave."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    phone = query.data.replace("cb_leaveacc_", "")
+    targets = db.get_all_targets()
+    delay = db.get_setting("leave_delay", "5")
+
+    context.user_data["leave_phone"] = phone
+
+    await query.edit_message_text(
+        f"╭─ 🚪 KONFIRMASI LEAVE\n"
+        f"│\n"
+        f"│  ⤷  Akun    : {phone}\n"
+        f"│  ⤷  Target  : {len(targets)} grup\n"
+        f"│  ⤷  Delay   : {delay} detik per grup\n"
+        f"│\n"
+        f"│ ⚠️ Akun akan keluar dari semua\n"
+        f"│ grup dalam daftar target!\n"
+        f"╰─ Yakin lanjutkan?",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Ya, Leave Semua", callback_data="cb_leaveconfirm")],
+            [InlineKeyboardButton("❌ Batal",           callback_data="cb_leavegroups")],
+        ]),
+    )
+
+
+async def leaveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Proses leave semua grup dengan delay."""
+    import asyncio
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    phone = context.user_data.pop("leave_phone", None)
+    if not phone:
+        await query.edit_message_text("╭─ ⚠️ Data tidak ditemukan.\n╰─ Coba lagi.", reply_markup=_BACK_BTN)
+        return
+
+    targets = db.get_all_targets()
+    delay = int(db.get_setting("leave_delay", "5"))
+
+    if not targets:
+        await query.edit_message_text("╭─ ⚠️ Tidak ada target.\n╰─", reply_markup=_BACK_BTN)
+        return
+
+    msg = await query.edit_message_text(
+        f"╭─ 🚪 LEAVE SEDANG BERJALAN\n"
+        f"│\n"
+        f"│  ⤷  Progress: 0/{len(targets)}\n"
+        f"│  ⤷  Delay   : {delay} detik\n"
+        f"╰─ Mohon tunggu..."
+    )
+
+    success_list, failed_list = [], []
+
+    for i, target in enumerate(targets, 1):
+        if i % 5 == 0 or i == 1:
+            try:
+                await msg.edit_text(
+                    f"╭─ 🚪 LEAVE SEDANG BERJALAN\n"
+                    f"│\n"
+                    f"│  ⤷  Progress: {i}/{len(targets)}\n"
+                    f"│  ⤷  Berhasil: {len(success_list)}\n"
+                    f"│  ⤷  Gagal   : {len(failed_list)}\n"
+                    f"╰─ Mohon tunggu..."
+                )
+            except Exception:
+                pass
+
+        result = await telegram_client.leave_group(target["chat_id"], phone)
+        if result["success"]:
+            success_list.append(target["title"])
+        else:
+            failed_list.append(f"{target['title']} → {result['error']}")
+
+        if i < len(targets):
+            await asyncio.sleep(delay)
+
+    db.add_log("INFO", f"Leave grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal")
+
+    report = (
+        f"╭─ ✅ LEAVE SELESAI\n"
+        f"│\n"
+        f"│  ⤷  Total   : {len(targets)}\n"
+        f"│  ⤷  Berhasil: {len(success_list)}\n"
+        f"│  ⤷  Gagal   : {len(failed_list)}\n"
+    )
+    if failed_list:
+        report += "│\n│ ❌ Gagal:\n"
+        for f_ in failed_list[:10]:
+            report += f"│  {f_}\n"
+        if len(failed_list) > 10:
+            report += f"│  ...dan {len(failed_list)-10} lainnya\n"
+    report += "╰─ Selesai."
+
+    await msg.edit_text(
+        report,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
+            [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
+        ]),
+    )
+
+
 async def removetarget_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
@@ -467,6 +677,24 @@ async def delete_target_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
     else:
         await query.edit_message_text("╭─ ⚠️ Target tidak ditemukan.\n╰─", reply_markup=_BACK_BTN)
+
+
+def build_leave_conversation() -> ConversationHandler:
+    return ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(leavedelay_callback, pattern="^cb_leavedelay$"),
+        ],
+        states={
+            WAIT_LEAVE_DELAY: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, wait_leave_delay)
+            ],
+        },
+        fallbacks=[MessageHandler(filters.COMMAND, cancel_add)],
+        per_chat=True,
+        per_user=True,
+        per_message=False,
+        allow_reentry=True,
+    )
 
 
 def build_addtarget_conversation() -> ConversationHandler:

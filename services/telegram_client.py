@@ -399,6 +399,35 @@ async def get_joined_groups(phone: str | None = None) -> list[dict]:
     return results
 
 
+async def leave_group(chat_id: int, phone: str | None = None) -> dict:
+    """Leave dari sebuah grup/channel. Return {'success': bool, 'error': str}."""
+    from telethon.tl.functions.channels import LeaveChannelRequest
+    from telethon.tl.functions.messages import DeleteChatUserRequest
+    from telethon.tl.types import InputPeerChannel, InputPeerChat
+    try:
+        client = get_client(phone)
+        if not await is_connected(phone):
+            return {"success": False, "error": "Tidak terkoneksi"}
+
+        try:
+            entity = await client.get_entity(chat_id)
+        except Exception as e:
+            return {"success": False, "error": f"Tidak dapat resolve: {e}"}
+
+        if isinstance(entity, Channel):
+            await client(LeaveChannelRequest(entity))
+        elif isinstance(entity, Chat):
+            me = await client.get_me()
+            await client(DeleteChatUserRequest(entity.id, me))
+        else:
+            return {"success": False, "error": "Tipe tidak didukung"}
+
+        return {"success": True, "error": None}
+    except Exception as e:
+        logger.error(f"leave_group {chat_id} error: {type(e).__name__}: {e}")
+        return {"success": False, "error": f"{type(e).__name__}: {e}"}
+
+
 async def disconnect(phone: str | None = None) -> None:
     global _clients
     if phone:
