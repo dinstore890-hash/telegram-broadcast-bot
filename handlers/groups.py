@@ -22,34 +22,28 @@ WAIT_LEAVE_DELAY   = 12
 WAIT_ARCHIVE_INPUT = 13
 
 # Flag cancel per user_id pakai asyncio.Event
-_cancel_events: dict[int, "asyncio.Event"] = {}
+_cancel_events: dict[int, asyncio.Event] = {}
 
-def _get_cancel_event(user_id: int) -> "asyncio.Event":
-    import asyncio
+def _get_cancel_event(user_id: int) -> asyncio.Event:
     if user_id not in _cancel_events:
         _cancel_events[user_id] = asyncio.Event()
     return _cancel_events[user_id]
 
 def _set_cancel(user_id: int) -> None:
-    import asyncio
-    if user_id not in _cancel_events:
-        _cancel_events[user_id] = asyncio.Event()
-    _cancel_events[user_id].set()
+    _get_cancel_event(user_id).set()
 
 def _is_cancelled(user_id: int) -> bool:
     ev = _cancel_events.get(user_id)
     return ev is not None and ev.is_set()
 
 def _clear_cancel(user_id: int) -> None:
-    import asyncio
     _cancel_events[user_id] = asyncio.Event()
 
 async def _cancellable_sleep(seconds: float, user_id: int) -> bool:
     """Sleep yang bisa di-interrupt. Return True kalau di-cancel."""
-    import asyncio
     ev = _get_cancel_event(user_id)
     try:
-        await asyncio.wait_for(ev.wait(), timeout=seconds)
+        await asyncio.wait_for(asyncio.shield(ev.wait()), timeout=seconds)
         return True  # di-cancel
     except asyncio.TimeoutError:
         return False  # selesai normal
@@ -339,10 +333,11 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 pass
             result = await telegram_client.join_and_resolve(link, phone)
             if result.get("error"):
-                if "FloodWait" in result.get("error", ""):
-                    failed.append(f"⏳ {link} → {result['error']}")
+                err = result["error"]
+                if "FloodWait" in err:
+                    failed.append(f"⏳ {link} → {err}")
                 else:
-                    failed.append(f"❌ {link} → {result['error']}")
+                    failed.append(f"❌ {link} → {err}")
             else:
                 added = db.add_target(
                     chat_id=result["chat_id"],

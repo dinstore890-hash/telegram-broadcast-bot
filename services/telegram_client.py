@@ -302,7 +302,6 @@ async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
 
     client = get_client(phone)
 
-    # Pastikan client terkoneksi dan authorized
     if not client.is_connected():
         await client.connect()
     if not await client.is_user_authorized():
@@ -320,7 +319,29 @@ async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
         username = username.replace("https://t.me/", "").split("/")[0]
     username = username.lstrip("@")
 
+    async def _do_join(ent=None):
+        """Coba join, handle FloodWait dengan tunggu + retry."""
+        for attempt in range(2):
+            try:
+                if invite_hash:
+                    await client(ImportChatInviteRequest(invite_hash))
+                elif ent and isinstance(ent, Channel):
+                    await client(JoinChannelRequest(ent))
+                return None  # sukses
+            except UserAlreadyParticipantError:
+                return None  # sudah member
+            except FloodWaitError as e:
+                wait = e.seconds + 5
+                logger.warning(f"FloodWait {e.seconds}s saat join [{identifier}], tunggu {wait}s...")
+                await asyncio.sleep(wait)
+                if attempt == 1:
+                    return f"FloodWait: harus tunggu {e.seconds}s"
+            except Exception as e:
+                return f"{type(e).__name__}: {e}"
+        return "Gagal setelah retry"
+
     try:
+        # Coba resolve entity
         entity = None
         try:
             entity = await client.get_entity(username if not invite_hash else raw)
@@ -328,43 +349,20 @@ async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
             pass
 
         if entity is None:
-            try:
-                if invite_hash:
-                    await client(ImportChatInviteRequest(invite_hash))
-                else:
-                    from telethon.tl.functions.contacts import ResolveUsernameRequest
-                    result = await client(ResolveUsernameRequest(username))
-                    entity = result.chats[0] if result.chats else (result.users[0] if result.users else None)
-                    if entity:
-                        await client(JoinChannelRequest(entity))
-            except UserAlreadyParticipantError:
-                pass
-            except Exception as e:
-                return {"error": str(e), "username": username}
+            # Belum bisa resolve, coba join dulu via invite/username
+            err = await _do_join()
+            if err:
+                return {"error": err, "username": username}
+            # Setelah join, resolve lagi
             try:
                 entity = await client.get_entity(username if not invite_hash else raw)
             except Exception as e:
                 return {"error": str(e), "username": username}
         else:
-            try:
-                if invite_hash:
-                    await client(ImportChatInviteRequest(invite_hash))
-                elif isinstance(entity, Channel):
-                    await client(JoinChannelRequest(entity))
-            except UserAlreadyParticipantError:
-                pass
-            except FloodWaitError as e:
-                logger.warning(f"join_and_resolve FloodWait {e.seconds}s [{identifier}], menunggu...")
-                await asyncio.sleep(e.seconds + 5)
-                try:
-                    if invite_hash:
-                        await client(ImportChatInviteRequest(invite_hash))
-                    elif isinstance(entity, Channel):
-                        await client(JoinChannelRequest(entity))
-                except Exception as e2:
-                    return {"error": f"FloodWait retry gagal: {e2}", "username": username}
-            except Exception as e:
-                logger.warning(f"join_and_resolve join error [{identifier}]: {type(e).__name__}: {e}")
+            # Entity sudah ada, coba join
+            err = await _do_join(entity)
+            if err:
+                return {"error": err, "username": username}
 
         if entity is None:
             return {"error": "Tidak dapat resolve", "username": username}
@@ -388,6 +386,9 @@ async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
             }
         return {"error": "Tipe tidak didukung", "username": username}
 
+    except Exception as e:
+        logger.error(f"join_and_resolve '{identifier}' error: {type(e).__name__}: {e}")
+        return {"error": f"{type(e).__name__}: {e}", "username": username}
     except Exception as e:
         logger.error(f"join_and_resolve '{identifier}' error: {type(e).__name__}: {e}")
         return {"error": f"{type(e).__name__}: {e}", "username": username}
