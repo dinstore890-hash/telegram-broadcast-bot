@@ -68,8 +68,9 @@ async def _show_groups(query) -> None:
         ],
         [
             InlineKeyboardButton("🚪 Leave Grup",    callback_data="cb_leavegroups"),
-            InlineKeyboardButton("📋 Bulk Join & Tambah", callback_data="cb_bulkjoin"),
+            InlineKeyboardButton("📦 Arsipkan Grup", callback_data="cb_archivegroups"),
         ],
+        [InlineKeyboardButton("📋 Bulk Join & Tambah",  callback_data="cb_bulkjoin")],
         [InlineKeyboardButton("📤 Export Target",        callback_data="cb_exporttargets")],
         [InlineKeyboardButton("🔄 Refresh",             callback_data="cb_groups")],
         [InlineKeyboardButton("⬅️ Kembali",             callback_data="cb_dashboard")],
@@ -716,4 +717,150 @@ def build_addtarget_conversation() -> ConversationHandler:
         per_user=True,
         per_message=False,
         allow_reentry=True,
+    )
+
+
+# ── Arsipkan Grup ─────────────────────────────────────────────────────────────
+
+async def archivegroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    accounts = db.get_active_accounts()
+    if not accounts:
+        await query.edit_message_text(
+            "╭─ ❌ TIDAK ADA AKUN\n│\n│ Belum ada akun terdaftar.\n╰─",
+            reply_markup=_BACK_BTN,
+        )
+        return
+
+    delay = db.get_setting("leave_delay", "5")
+    targets = db.get_all_targets()
+
+    keyboard = []
+    for acc in accounts:
+        name = acc["name"] or acc["phone"]
+        keyboard.append([InlineKeyboardButton(
+            f"📱 {name} ({acc['phone']})",
+            callback_data=f"cb_archiveacc_{acc['phone']}"
+        )])
+    keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_groups")])
+
+    await query.edit_message_text(
+        f"╭─ 📦 ARSIPKAN GRUP OTOMATIS\n"
+        f"│\n"
+        f"│  ⤷  Total target : {len(targets)} grup\n"
+        f"│  ⤷  Delay        : {delay} detik\n"
+        f"│\n"
+        f"│ Pilih akun yang akan arsipkan:\n"
+        f"╰─",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+
+
+async def archiveacc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    phone = query.data.replace("cb_archiveacc_", "")
+    targets = db.get_all_targets()
+    delay = db.get_setting("leave_delay", "5")
+    context.user_data["archive_phone"] = phone
+
+    await query.edit_message_text(
+        f"╭─ 📦 KONFIRMASI ARSIPKAN\n"
+        f"│\n"
+        f"│  ⤷  Akun    : {phone}\n"
+        f"│  ⤷  Target  : {len(targets)} grup\n"
+        f"│  ⤷  Delay   : {delay} detik per grup\n"
+        f"│\n"
+        f"│ Semua grup dalam daftar target\n"
+        f"│ akan dipindah ke Arsip.\n"
+        f"╰─ Yakin lanjutkan?",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Ya, Arsipkan Semua", callback_data="cb_archiveconfirm")],
+            [InlineKeyboardButton("❌ Batal",              callback_data="cb_archivegroups")],
+        ]),
+    )
+
+
+async def archiveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    import asyncio
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    phone = context.user_data.pop("archive_phone", None)
+    if not phone:
+        await query.edit_message_text("╭─ ⚠️ Data tidak ditemukan.\n╰─ Coba lagi.", reply_markup=_BACK_BTN)
+        return
+
+    targets = db.get_all_targets()
+    delay = int(db.get_setting("leave_delay", "5"))
+
+    if not targets:
+        await query.edit_message_text("╭─ ⚠️ Tidak ada target.\n╰─", reply_markup=_BACK_BTN)
+        return
+
+    msg = await query.edit_message_text(
+        f"╭─ 📦 ARSIPKAN SEDANG BERJALAN\n"
+        f"│\n"
+        f"│  ⤷  Progress: 0/{len(targets)}\n"
+        f"│  ⤷  Delay   : {delay} detik\n"
+        f"╰─ Mohon tunggu..."
+    )
+
+    success_list, failed_list = [], []
+
+    for i, target in enumerate(targets, 1):
+        if i % 5 == 0 or i == 1:
+            try:
+                await msg.edit_text(
+                    f"╭─ 📦 ARSIPKAN SEDANG BERJALAN\n"
+                    f"│\n"
+                    f"│  ⤷  Progress: {i}/{len(targets)}\n"
+                    f"│  ⤷  Berhasil: {len(success_list)}\n"
+                    f"│  ⤷  Gagal   : {len(failed_list)}\n"
+                    f"╰─ Mohon tunggu..."
+                )
+            except Exception:
+                pass
+
+        result = await telegram_client.archive_group(target["chat_id"], phone, archive=True)
+        if result["success"]:
+            success_list.append(target["title"])
+        else:
+            failed_list.append(f"{target['title']} → {result['error']}")
+
+        if i < len(targets):
+            await asyncio.sleep(delay)
+
+    db.add_log("INFO", f"Arsipkan grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal")
+
+    report = (
+        f"╭─ ✅ ARSIPKAN SELESAI\n"
+        f"│\n"
+        f"│  ⤷  Total   : {len(targets)}\n"
+        f"│  ⤷  Berhasil: {len(success_list)}\n"
+        f"│  ⤷  Gagal   : {len(failed_list)}\n"
+    )
+    if failed_list:
+        report += "│\n│ ❌ Gagal:\n"
+        for f_ in failed_list[:10]:
+            report += f"│  {f_}\n"
+        if len(failed_list) > 10:
+            report += f"│  ...dan {len(failed_list)-10} lainnya\n"
+    report += "╰─ Selesai."
+
+    await msg.edit_text(
+        report,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
+            [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
+        ]),
     )
