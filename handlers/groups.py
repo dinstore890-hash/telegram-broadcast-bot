@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import logging
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -20,17 +21,38 @@ WAIT_BULK_INPUT    = 11
 WAIT_LEAVE_DELAY   = 12
 WAIT_ARCHIVE_INPUT = 13
 
-# Flag cancel per user_id: True = cancel diminta
-_cancel_flags: dict[int, bool] = {}
+# Flag cancel per user_id pakai asyncio.Event
+_cancel_events: dict[int, "asyncio.Event"] = {}
+
+def _get_cancel_event(user_id: int) -> "asyncio.Event":
+    import asyncio
+    if user_id not in _cancel_events:
+        _cancel_events[user_id] = asyncio.Event()
+    return _cancel_events[user_id]
 
 def _set_cancel(user_id: int) -> None:
-    _cancel_flags[user_id] = True
+    import asyncio
+    if user_id not in _cancel_events:
+        _cancel_events[user_id] = asyncio.Event()
+    _cancel_events[user_id].set()
 
 def _is_cancelled(user_id: int) -> bool:
-    return _cancel_flags.get(user_id, False)
+    ev = _cancel_events.get(user_id)
+    return ev is not None and ev.is_set()
 
 def _clear_cancel(user_id: int) -> None:
-    _cancel_flags.pop(user_id, None)
+    import asyncio
+    _cancel_events[user_id] = asyncio.Event()
+
+async def _cancellable_sleep(seconds: float, user_id: int) -> bool:
+    """Sleep yang bisa di-interrupt. Return True kalau di-cancel."""
+    import asyncio
+    ev = _get_cancel_event(user_id)
+    try:
+        await asyncio.wait_for(ev.wait(), timeout=seconds)
+        return True  # di-cancel
+    except asyncio.TimeoutError:
+        return False  # selesai normal
 
 _STOP_BTN = lambda: InlineKeyboardMarkup([
     [InlineKeyboardButton("🛑 Stop", callback_data="cb_cancelprocess")]
@@ -331,7 +353,9 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             else:
                 success.append(f"⚠️ {label} (sudah ada)")
         if i < len(lines):
-            await asyncio.sleep(delay)
+            cancelled = await _cancellable_sleep(delay, user_id)
+            if cancelled:
+                break
 
     cancelled = _is_cancelled(user_id)
     _clear_cancel(user_id)
@@ -356,7 +380,7 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             report += f"│  {f_}\n"
     report += "╰─ Selesai."
 
-    db.add_log("INFO", f"Bulk join: {len(success)} berhasil, {len(failed)} gagal")
+    db.add_log("INFO", f"Bulk join: {len(success)} berhasil, {len(failed)} gagal{' (dibatalkan)' if cancelled else ''}")
 
     await msg.edit_text(
         report,
@@ -700,7 +724,9 @@ async def leaveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_TY
             failed_list.append(f"{target['title']} → {result['error']}")
 
         if i < len(targets):
-            await asyncio.sleep(delay)
+            cancelled = await _cancellable_sleep(delay, user_id)
+            if cancelled:
+                break
 
     cancelled = _is_cancelled(user_id)
     _clear_cancel(user_id)
@@ -950,7 +976,9 @@ async def wait_archive_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     failed_list.append(f"{identifier} → {result['error']}")
 
         if i < len(lines):
-            await asyncio.sleep(delay)
+            cancelled = await _cancellable_sleep(delay, user_id)
+            if cancelled:
+                break
 
     cancelled = _is_cancelled(user_id)
     _clear_cancel(user_id)
