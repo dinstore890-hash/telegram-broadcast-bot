@@ -297,7 +297,8 @@ async def send_message_to(chat_id: int, message: str, phone: str | None = None) 
 async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
     from telethon.tl.functions.channels import JoinChannelRequest
     from telethon.tl.functions.messages import ImportChatInviteRequest
-    from telethon.errors import UserAlreadyParticipantError
+    from telethon.errors import UserAlreadyParticipantError, FloodWaitError
+    import asyncio
 
     client = get_client(phone)
 
@@ -352,6 +353,16 @@ async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
                     await client(JoinChannelRequest(entity))
             except UserAlreadyParticipantError:
                 pass
+            except FloodWaitError as e:
+                logger.warning(f"join_and_resolve FloodWait {e.seconds}s [{identifier}], menunggu...")
+                await asyncio.sleep(e.seconds + 5)
+                try:
+                    if invite_hash:
+                        await client(ImportChatInviteRequest(invite_hash))
+                    elif isinstance(entity, Channel):
+                        await client(JoinChannelRequest(entity))
+                except Exception as e2:
+                    return {"error": f"FloodWait retry gagal: {e2}", "username": username}
             except Exception as e:
                 logger.warning(f"join_and_resolve join error [{identifier}]: {type(e).__name__}: {e}")
 

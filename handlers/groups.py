@@ -339,7 +339,10 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 pass
             result = await telegram_client.join_and_resolve(link, phone)
             if result.get("error"):
-                failed.append(f"❌ {link} → {result['error']}")
+                if "FloodWait" in result.get("error", ""):
+                    failed.append(f"⏳ {link} → {result['error']}")
+                else:
+                    failed.append(f"❌ {link} → {result['error']}")
             else:
                 added = db.add_target(
                     chat_id=result["chat_id"],
