@@ -14,10 +14,26 @@ from services import telegram_client
 
 logger = logging.getLogger(__name__)
 
-WAIT_TARGET_INPUT = 10
-WAIT_BULK_INPUT   = 11
-WAIT_LEAVE_DELAY  = 12
+WAIT_TARGET_INPUT  = 10
+WAIT_BULK_INPUT    = 11
+WAIT_LEAVE_DELAY   = 12
 WAIT_ARCHIVE_INPUT = 13
+
+# Flag cancel per user_id: True = cancel diminta
+_cancel_flags: dict[int, bool] = {}
+
+def _set_cancel(user_id: int) -> None:
+    _cancel_flags[user_id] = True
+
+def _is_cancelled(user_id: int) -> bool:
+    return _cancel_flags.get(user_id, False)
+
+def _clear_cancel(user_id: int) -> None:
+    _cancel_flags.pop(user_id, None)
+
+_STOP_BTN = lambda: InlineKeyboardMarkup([
+    [InlineKeyboardButton("🛑 Stop", callback_data="cb_cancelprocess")]
+])
 
 _BACK_BTN = InlineKeyboardMarkup([
     [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
@@ -274,21 +290,30 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     import asyncio
     phone = context.user_data.pop("bulkjoin_phone", None)
     delay = int(db.get_setting("leave_delay", "5"))
+    user_id = update.effective_user.id
+    _clear_cancel(user_id)
 
     msg = await update.message.reply_text(
         f"╭─ ⏳ Memproses 0/{len(lines)}...\n"
         f"│ Delay: {delay} detik per grup\n"
-        f"╰─"
+        f"╰─",
+        reply_markup=_STOP_BTN(),
     )
 
     success, failed = [], []
     for i, link in enumerate(lines, 1):
-        await msg.edit_text(
-            f"╭─ ⏳ Memproses {i}/{len(lines)}...\n"
-            f"│ 🔗 {link}\n"
-            f"│ ✅ {len(success)} berhasil | ❌ {len(failed)} gagal\n"
-            f"╰─"
-        )
+        if _is_cancelled(user_id):
+            break
+        try:
+            await msg.edit_text(
+                f"╭─ ⏳ Memproses {i}/{len(lines)}...\n"
+                f"│ 🔗 {link}\n"
+                f"│ ✅ {len(success)} berhasil | ❌ {len(failed)} gagal\n"
+                f"╰─",
+                reply_markup=_STOP_BTN(),
+            )
+        except Exception:
+            pass
         result = await telegram_client.join_and_resolve(link, phone)
         if result.get("error"):
             failed.append(f"❌ {link} → {result['error']}")
@@ -308,10 +333,13 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         if i < len(lines):
             await asyncio.sleep(delay)
 
+    cancelled = _is_cancelled(user_id)
+    _clear_cancel(user_id)
+
     report = (
-        f"╭─ 📊 HASIL BULK JOIN\n"
+        f"╭─ 📊 HASIL BULK JOIN{' (DIBATALKAN)' if cancelled else ''}\n"
         f"│\n"
-        f"│  ⤷  Total    : {len(lines)}\n"
+        f"│  ⤷  Diproses : {len(success) + len(failed)}/{len(lines)}\n"
         f"│  ⤷  Berhasil : {len(success)}\n"
         f"│  ⤷  Gagal    : {len(failed)}\n"
         f"│\n"
@@ -438,7 +466,21 @@ async def cancel_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 # ── Leave Grup ────────────────────────────────────────────────────────────────
 
-async def leavegroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+async def cancelprocess_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer("🛑 Menghentikan proses...")
+    if not is_admin(query.from_user.id):
+        return
+    _set_cancel(query.from_user.id)
+    try:
+        await query.edit_message_text(
+            "╭─ 🛑 PROSES DIHENTIKAN\n│\n│ Proses akan berhenti setelah\n│ item saat ini selesai.\n╰─",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_groups")]
+            ])
+        )
+    except Exception:
+        pass
     """Tampilkan pilihan akun untuk leave grup."""
     query = update.callback_query
     await query.answer()
@@ -591,8 +633,12 @@ async def leaveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
     success_list, failed_list = [], []
+    user_id = query.from_user.id
+    _clear_cancel(user_id)
 
     for i, target in enumerate(targets, 1):
+        if _is_cancelled(user_id):
+            break
         if i % 5 == 0 or i == 1:
             try:
                 await msg.edit_text(
@@ -601,7 +647,8 @@ async def leaveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_TY
                     f"│  ⤷  Progress: {i}/{len(targets)}\n"
                     f"│  ⤷  Berhasil: {len(success_list)}\n"
                     f"│  ⤷  Gagal   : {len(failed_list)}\n"
-                    f"╰─ Mohon tunggu..."
+                    f"╰─ Mohon tunggu...",
+                    reply_markup=_STOP_BTN(),
                 )
             except Exception:
                 pass
@@ -615,12 +662,14 @@ async def leaveconfirm_callback(update: Update, context: ContextTypes.DEFAULT_TY
         if i < len(targets):
             await asyncio.sleep(delay)
 
-    db.add_log("INFO", f"Leave grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal")
+    cancelled = _is_cancelled(user_id)
+    _clear_cancel(user_id)
+    db.add_log("INFO", f"Leave grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal{' (dibatalkan)' if cancelled else ''}")
 
     report = (
-        f"╭─ ✅ LEAVE SELESAI\n"
+        f"╭─ {'⚠️ LEAVE DIBATALKAN' if cancelled else '✅ LEAVE SELESAI'}\n"
         f"│\n"
-        f"│  ⤷  Total   : {len(targets)}\n"
+        f"│  ⤷  Diproses: {len(success_list) + len(failed_list)}/{len(targets)}\n"
         f"│  ⤷  Berhasil: {len(success_list)}\n"
         f"│  ⤷  Gagal   : {len(failed_list)}\n"
     )
@@ -813,18 +862,22 @@ async def wait_archive_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     phone = context.user_data.pop("archive_phone", None)
     delay = int(db.get_setting("leave_delay", "5"))
+    user_id = update.effective_user.id
+    _clear_cancel(user_id)
 
     msg = await update.message.reply_text(
         f"╭─ 📦 ARSIPKAN SEDANG BERJALAN\n"
         f"│  ⤷  Progress: 0/{len(lines)}\n"
         f"│  ⤷  Delay   : {delay} detik\n"
-        f"╰─ Mohon tunggu..."
+        f"╰─ Mohon tunggu...",
+        reply_markup=_STOP_BTN(),
     )
 
     success_list, failed_list = [], []
 
     for i, identifier in enumerate(lines, 1):
-        # Resolve dulu untuk dapat chat_id
+        if _is_cancelled(user_id):
+            break
         username = identifier.lstrip("@").strip()
         if identifier.startswith("https://t.me/"):
             username = identifier.replace("https://t.me/", "").split("/")[0]
@@ -835,7 +888,8 @@ async def wait_archive_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 f"│  ⤷  Progress: {i}/{len(lines)}\n"
                 f"│  ⤷  {identifier}\n"
                 f"│  ⤷  ✅ {len(success_list)} | ❌ {len(failed_list)}\n"
-                f"╰─ Mohon tunggu..."
+                f"╰─ Mohon tunggu...",
+                reply_markup=_STOP_BTN(),
             )
         except Exception:
             pass
@@ -853,12 +907,14 @@ async def wait_archive_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
         if i < len(lines):
             await asyncio.sleep(delay)
 
-    db.add_log("INFO", f"Arsipkan grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal")
+    cancelled = _is_cancelled(user_id)
+    _clear_cancel(user_id)
+    db.add_log("INFO", f"Arsipkan grup [{phone}]: {len(success_list)} berhasil, {len(failed_list)} gagal{' (dibatalkan)' if cancelled else ''}")
 
     report = (
-        f"╭─ ✅ ARSIPKAN SELESAI\n"
+        f"╭─ {'⚠️ ARSIPKAN DIBATALKAN' if cancelled else '✅ ARSIPKAN SELESAI'}\n"
         f"│\n"
-        f"│  ⤷  Total   : {len(lines)}\n"
+        f"│  ⤷  Diproses: {len(success_list) + len(failed_list)}/{len(lines)}\n"
         f"│  ⤷  Berhasil: {len(success_list)}\n"
         f"│  ⤷  Gagal   : {len(failed_list)}\n"
     )

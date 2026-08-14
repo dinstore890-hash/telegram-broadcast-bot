@@ -22,7 +22,7 @@ from handlers.groups import (
     importgroups_callback, importconfirm_callback,
     bulkjoin_callback, exporttargets_callback, activateall_callback,
     leavegroups_callback, leavedelay_callback, leaveacc_callback, leaveconfirm_callback,
-    archivegroups_callback, archiveacc_callback,
+    archivegroups_callback, archiveacc_callback, cancelprocess_callback,
     build_addtarget_conversation, build_leave_conversation, build_archive_conversation,
 )
 from handlers.broadcast import (
@@ -124,6 +124,7 @@ def build_app():
     app.add_handler(CallbackQueryHandler(leaveconfirm_callback,   pattern="^cb_leaveconfirm$"))
     app.add_handler(CallbackQueryHandler(archivegroups_callback,  pattern="^cb_archivegroups$"))
     app.add_handler(CallbackQueryHandler(archiveacc_callback,     pattern="^cb_archiveacc_"))
+    app.add_handler(CallbackQueryHandler(cancelprocess_callback,  pattern="^cb_cancelprocess$"))
     app.add_handler(CallbackQueryHandler(pause_callback,          pattern="^cb_pause$"))
     app.add_handler(CallbackQueryHandler(resume_callback,         pattern="^bc_resume$"))
     app.add_handler(CallbackQueryHandler(cancel_running_callback, pattern="^bc_cancel$"))
