@@ -446,7 +446,6 @@ async def leavegroups_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             f"📱 {name} ({acc['phone']})",
             callback_data=f"cb_leaveacc_{acc['phone']}"
         )])
-    keyboard.append([InlineKeyboardButton("⏱️ Atur Delay", callback_data="cb_leavedelay")])
     keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_groups")])
 
     await query.edit_message_text(
