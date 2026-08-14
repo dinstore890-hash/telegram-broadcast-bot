@@ -300,6 +300,14 @@ async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
     from telethon.errors import UserAlreadyParticipantError
 
     client = get_client(phone)
+
+    # Pastikan client terkoneksi dan authorized
+    if not client.is_connected():
+        await client.connect()
+    if not await client.is_user_authorized():
+        return {"error": f"Akun {phone} tidak terauthorized", "username": identifier}
+
+    logger.info(f"join_and_resolve: phone={phone}, identifier={identifier}")
     raw = identifier.strip()
 
     invite_hash = None
@@ -344,8 +352,8 @@ async def join_and_resolve(identifier: str, phone: str | None = None) -> dict:
                     await client(JoinChannelRequest(entity))
             except UserAlreadyParticipantError:
                 pass
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"join_and_resolve join error [{identifier}]: {type(e).__name__}: {e}")
 
         if entity is None:
             return {"error": "Tidak dapat resolve", "username": username}
