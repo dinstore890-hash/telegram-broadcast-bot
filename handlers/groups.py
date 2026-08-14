@@ -482,6 +482,46 @@ async def cancelprocess_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
     except Exception:
         pass
+
+
+async def leavegroups_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Tampilkan pilihan akun untuk leave grup."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    accounts = db.get_active_accounts()
+    if not accounts:
+        await query.edit_message_text(
+            "╭─ ❌ TIDAK ADA AKUN\n│\n│ Belum ada akun terdaftar.\n╰─",
+            reply_markup=_BACK_BTN,
+        )
+        return ConversationHandler.END
+
+    delay = db.get_setting("leave_delay", "5")
+    targets = db.get_all_targets()
+
+    keyboard = []
+    for acc in accounts:
+        name = acc["name"] or acc["phone"]
+        keyboard.append([InlineKeyboardButton(
+            f"📱 {name} ({acc['phone']})",
+            callback_data=f"cb_leaveacc_{acc['phone']}"
+        )])
+    keyboard.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_groups")])
+
+    await query.edit_message_text(
+        f"╭─ 🚪 LEAVE GRUP OTOMATIS\n"
+        f"│\n"
+        f"│  ⤷  Total target : {len(targets)} grup\n"
+        f"│  ⤷  Delay leave  : {delay} detik\n"
+        f"│\n"
+        f"│ Pilih akun yang akan leave:\n"
+        f"╰─",
+        reply_markup=InlineKeyboardMarkup(keyboard),
+    )
+    return ConversationHandler.END
     """Tampilkan pilihan akun untuk leave grup."""
     query = update.callback_query
     await query.answer()
