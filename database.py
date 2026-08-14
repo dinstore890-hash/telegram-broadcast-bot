@@ -197,6 +197,13 @@ def set_target_status(chat_id: int, is_active: int) -> None:
         conn.execute("UPDATE targets SET is_active = ? WHERE chat_id = ?", (is_active, chat_id))
 
 
+def activate_all_targets() -> int:
+    """Set semua target jadi aktif. Return jumlah yang diupdate."""
+    with get_connection() as conn:
+        cur = conn.execute("UPDATE targets SET is_active = 1 WHERE is_active = 0")
+        return cur.rowcount
+
+
 # ── Broadcasts ────────────────────────────────────────────────────────────────
 
 def create_broadcast(message: str, test_mode: bool = False) -> int:

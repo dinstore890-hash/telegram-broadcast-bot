@@ -61,7 +61,10 @@ async def _show_groups(query) -> None:
             InlineKeyboardButton("➕ Tambah Target",  callback_data="cb_addtarget"),
             InlineKeyboardButton("🗑️ Hapus Target",  callback_data="cb_removetarget"),
         ],
-        [InlineKeyboardButton("📥 Import dari Akun",    callback_data="cb_importgroups")],
+        [
+            InlineKeyboardButton("✅ Aktifkan Semua", callback_data="cb_activateall"),
+            InlineKeyboardButton("📥 Import dari Akun", callback_data="cb_importgroups"),
+        ],
         [InlineKeyboardButton("📋 Bulk Join & Tambah",  callback_data="cb_bulkjoin")],
         [InlineKeyboardButton("📤 Export Target",        callback_data="cb_exporttargets")],
         [InlineKeyboardButton("🔄 Refresh",             callback_data="cb_groups")],
@@ -150,6 +153,28 @@ async def importconfirm_callback(update: Update, context: ContextTypes.DEFAULT_T
         f"│  ⤷  Diperbarui   : {updated}\n"
         f"│  ⤷  Tidak berubah: {skipped}\n"
         f"╰─ Import selesai!",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
+            [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
+        ]),
+    )
+
+
+async def activateall_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    count = db.activate_all_targets()
+    db.add_log("INFO", f"Aktifkan semua target: {count} target diaktifkan")
+
+    await query.edit_message_text(
+        f"╭─ ✅ SEMUA TARGET DIAKTIFKAN\n"
+        f"│\n"
+        f"│  ⤷  Diaktifkan : {count} target\n"
+        f"│\n"
+        f"╰─ Semua target siap untuk broadcast.",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
             [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
