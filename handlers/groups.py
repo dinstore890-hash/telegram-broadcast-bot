@@ -357,6 +357,14 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         _clear_cancel(user_id)
         db.add_log("INFO", f"Bulk join: {len(success)} berhasil, {len(failed)} gagal{' (dibatalkan)' if _done else ''}")
 
+        # Simpan username yang gagal untuk retry
+        failed_usernames = []
+        for f_ in failed:
+            # Extract username dari string "❌ @username → error"
+            parts = f_.split(" → ")[0].replace("❌ ", "").replace("⏳ ", "").strip()
+            if parts.startswith("@"):
+                failed_usernames.append(parts)
+
         report = (
             f"╭─ 📊 HASIL BULK JOIN{' (DIBATALKAN)' if _done else ''}\n"
             f"│\n"
@@ -373,19 +381,43 @@ async def wait_bulk_input(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 report += f"│  ...dan {len(success)-20} lainnya\n"
         if failed:
             report += "│\n│ ❌ Gagal:\n"
-            for f_ in failed[:10]:
+            for f_ in failed:  # Tampilkan semua yang gagal
                 report += f"│  {f_}\n"
         report += "╰─ Selesai."
+
+        # Simpan ke db setting untuk retry
+        if failed_usernames:
+            db.set_setting("last_failed_joins", "\n".join(failed_usernames))
+
+        keyboard = []
+        if failed_usernames:
+            keyboard.append([InlineKeyboardButton(f"🔄 Retry {len(failed_usernames)} yang gagal", callback_data=f"cb_retryjoin_{phone}")])
+        keyboard.append([InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")])
+        keyboard.append([InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")])
+
         try:
             await msg.edit_text(
                 report,
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")],
-                    [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
-                ]),
+                reply_markup=InlineKeyboardMarkup(keyboard),
             )
         except Exception:
-            pass
+            # Kalau terlalu panjang, kirim sebagai pesan baru
+            try:
+                await msg.edit_text(
+                    f"╭─ 📊 HASIL BULK JOIN{' (DIBATALKAN)' if _done else ''}\n"
+                    f"│  ⤷  Diproses : {len(success) + len(failed)}/{len(lines)}\n"
+                    f"│  ⤷  Berhasil : {len(success)}\n"
+                    f"│  ⤷  Gagal    : {len(failed)}\n"
+                    f"╰─ Selesai.",
+                    reply_markup=InlineKeyboardMarkup(keyboard),
+                )
+                if failed:
+                    failed_report = "❌ Daftar yang gagal:\n" + "\n".join(f_ for f_ in failed)
+                    # Kirim per 4096 karakter
+                    for i in range(0, len(failed_report), 4096):
+                        await msg.reply_text(failed_report[i:i+4096])
+            except Exception:
+                pass
 
     asyncio.create_task(_run())
     return ConversationHandler.END
@@ -488,6 +520,106 @@ async def cancel_add(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 # ── Leave Grup ────────────────────────────────────────────────────────────────
+
+async def retryjoin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Retry bulk join untuk username yang gagal sebelumnya."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    phone = query.data.replace("cb_retryjoin_", "")
+    failed_str = db.get_setting("last_failed_joins", "")
+    if not failed_str:
+        await query.edit_message_text("╭─ ⚠️ Tidak ada data retry.\n╰─", reply_markup=_BACK_BTN)
+        return
+
+    lines = [l.strip() for l in failed_str.splitlines() if l.strip()]
+    delay = int(db.get_setting("leave_delay", "5"))
+    user_id = query.from_user.id
+    _clear_cancel(user_id)
+
+    msg = await query.edit_message_text(
+        f"╭─ 🔄 RETRY {len(lines)} GRUP\n"
+        f"│  ⤷  Delay: {delay} detik\n"
+        f"╰─ Mohon tunggu...",
+        reply_markup=_STOP_BTN(),
+    )
+
+    async def _run():
+        success, failed = [], []
+        for i, link in enumerate(lines, 1):
+            if _is_cancelled(user_id):
+                break
+            try:
+                await msg.edit_text(
+                    f"╭─ 🔄 RETRY {len(lines)} GRUP\n"
+                    f"│  ⤷  Progress: {i}/{len(lines)}\n"
+                    f"│  ⤷  {link}\n"
+                    f"│  ⤷  ✅ {len(success)} | ❌ {len(failed)}\n"
+                    f"╰─ Mohon tunggu...",
+                    reply_markup=_STOP_BTN(),
+                )
+            except Exception:
+                pass
+            result = await telegram_client.join_and_resolve(link, phone)
+            if result.get("error"):
+                err = result["error"]
+                if "FloodWait" in err:
+                    failed.append(f"⏳ {link} → {err}")
+                else:
+                    failed.append(f"❌ {link} → {err}")
+            else:
+                added = db.add_target(
+                    chat_id=result["chat_id"],
+                    title=result["title"],
+                    username=result["username"],
+                    chat_type=result["chat_type"],
+                )
+                label = result["title"] or result["username"]
+                success.append(f"✅ {label}" if added else f"⚠️ {label} (sudah ada)")
+
+            if i < len(lines):
+                c = await _cancellable_sleep(delay, user_id)
+                if c:
+                    break
+
+        _clear_cancel(user_id)
+
+        # Update daftar gagal untuk retry berikutnya
+        new_failed = [f_.split(" → ")[0].replace("❌ ", "").replace("⏳ ", "").strip() for f_ in failed if f_.split(" → ")[0].replace("❌ ", "").replace("⏳ ", "").strip().startswith("@")]
+        if new_failed:
+            db.set_setting("last_failed_joins", "\n".join(new_failed))
+        else:
+            db.set_setting("last_failed_joins", "")
+
+        report = (
+            f"╭─ 📊 HASIL RETRY\n"
+            f"│  ⤷  Berhasil: {len(success)}\n"
+            f"│  ⤷  Gagal   : {len(failed)}\n"
+        )
+        if failed:
+            report += "│\n│ ❌ Gagal:\n"
+            for f_ in failed:
+                report += f"│  {f_}\n"
+        report += "╰─ Selesai."
+
+        keyboard = []
+        if new_failed:
+            keyboard.append([InlineKeyboardButton(f"🔄 Retry {len(new_failed)} lagi", callback_data=f"cb_retryjoin_{phone}")])
+        keyboard.append([InlineKeyboardButton("📋 Lihat Daftar", callback_data="cb_groups")])
+        keyboard.append([InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")])
+
+        try:
+            await msg.edit_text(report, reply_markup=InlineKeyboardMarkup(keyboard))
+        except Exception:
+            await msg.edit_text(
+                f"╭─ 📊 HASIL RETRY\n│  ⤷  Berhasil: {len(success)}\n│  ⤷  Gagal: {len(failed)}\n╰─",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
+
+    asyncio.create_task(_run())
+
 
 async def cancelprocess_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
