@@ -109,14 +109,6 @@ def init_db() -> None:
                 user_id    INTEGER NOT NULL,
                 visited_at TEXT NOT NULL
             );
-
-            CREATE TABLE IF NOT EXISTS archived_chats (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                chat_id     INTEGER UNIQUE NOT NULL,
-                title       TEXT,
-                username    TEXT,
-                archived_at TEXT NOT NULL
-            );
         """)
 
 
@@ -210,31 +202,6 @@ def activate_all_targets() -> int:
     with get_connection() as conn:
         cur = conn.execute("UPDATE targets SET is_active = 1 WHERE is_active = 0")
         return cur.rowcount
-
-
-# ── Archived Chats ────────────────────────────────────────────────────────────
-
-def is_archived(chat_id: int) -> bool:
-    with get_connection() as conn:
-        row = conn.execute("SELECT 1 FROM archived_chats WHERE chat_id = ?", (chat_id,)).fetchone()
-        return row is not None
-
-
-def mark_archived(chat_id: int, title: str, username: str = "") -> bool:
-    try:
-        with get_connection() as conn:
-            conn.execute(
-                "INSERT INTO archived_chats (chat_id, title, username, archived_at) VALUES (?,?,?,?)",
-                (chat_id, title, username, datetime.now().isoformat()),
-            )
-        return True
-    except sqlite3.IntegrityError:
-        return False
-
-
-def get_all_archived() -> list[sqlite3.Row]:
-    with get_connection() as conn:
-        return conn.execute("SELECT * FROM archived_chats ORDER BY archived_at DESC").fetchall()
 
 
 # ── Broadcasts ────────────────────────────────────────────────────────────────

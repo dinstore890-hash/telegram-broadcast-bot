@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 WAIT_TARGET_INPUT  = 10
 WAIT_BULK_INPUT    = 11
 WAIT_LEAVE_DELAY   = 12
-WAIT_ARCHIVE_INPUT = 13
 
 # Flag cancel per user_id pakai asyncio.Event
 _cancel_events: dict[int, asyncio.Event] = {}
@@ -102,9 +101,8 @@ async def _show_groups(query) -> None:
         ],
         [
             InlineKeyboardButton("🚪 Leave Grup",    callback_data="cb_leavegroups"),
-            InlineKeyboardButton("📦 Arsipkan Grup", callback_data="cb_archivegroups"),
+            InlineKeyboardButton("📋 Bulk Join & Tambah", callback_data="cb_bulkjoin"),
         ],
-        [InlineKeyboardButton("📋 Bulk Join & Tambah",  callback_data="cb_bulkjoin")],
         [InlineKeyboardButton("📤 Export Target",        callback_data="cb_exporttargets")],
         [InlineKeyboardButton("🔄 Refresh",             callback_data="cb_groups")],
         [InlineKeyboardButton("⬅️ Kembali",             callback_data="cb_dashboard")],

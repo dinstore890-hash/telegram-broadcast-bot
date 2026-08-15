@@ -436,64 +436,6 @@ async def get_joined_groups(phone: str | None = None) -> list[dict]:
     return results
 
 
-async def archive_group(chat_id: int, phone: str | None = None, archive: bool = True) -> dict:
-    """Arsipkan atau batalkan arsip sebuah grup/channel. Return {'success': bool, 'error': str}."""
-    try:
-        from telethon.tl.functions.folders import EditPeerFoldersRequest
-        from telethon.tl.types import InputFolderPeer
-    except ImportError:
-        return {"success": False, "error": "EditPeerFoldersRequest tidak tersedia di versi Telethon ini"}
-
-    try:
-        client = get_client(phone)
-        if not await is_connected(phone):
-            return {"success": False, "error": "Tidak terkoneksi"}
-
-        try:
-            entity = await client.get_entity(chat_id)
-        except Exception as e:
-            return {"success": False, "error": f"Tidak dapat resolve: {e}"}
-
-        folder_id = 1 if archive else 0  # 1 = arsip, 0 = normal
-
-        input_peer = await client.get_input_entity(entity)
-        await client(EditPeerFoldersRequest(
-            folder_peers=[InputFolderPeer(peer=input_peer, folder_id=folder_id)]
-        ))
-        return {"success": True, "error": None}
-    except Exception as e:
-        logger.error(f"archive_group {chat_id} error: {type(e).__name__}: {e}")
-        return {"success": False, "error": f"{type(e).__name__}: {e}"}
-
-
-async def archive_group(chat_id, phone: str | None = None, archive: bool = True) -> dict:
-    """Arsipkan atau batalkan arsip grup/channel. folder_id=1 arsip, 0=normal."""
-    try:
-        from telethon.tl.functions.folders import EditPeerFoldersRequest
-        from telethon.tl.types import InputFolderPeer
-    except ImportError:
-        return {"success": False, "error": "EditPeerFoldersRequest tidak tersedia"}
-
-    try:
-        client = get_client(phone)
-        if not await is_connected(phone):
-            return {"success": False, "error": "Tidak terkoneksi"}
-
-        try:
-            input_peer = await client.get_input_entity(chat_id)
-        except Exception:
-            return {"success": False, "error": f"Tidak dapat resolve {chat_id}"}
-
-        folder_id = 1 if archive else 0
-        await client(EditPeerFoldersRequest(
-            folder_peers=[InputFolderPeer(peer=input_peer, folder_id=folder_id)]
-        ))
-        return {"success": True, "error": None}
-    except Exception as e:
-        logger.error(f"archive_group {chat_id} error: {type(e).__name__}: {e}")
-        return {"success": False, "error": f"{type(e).__name__}: {e}"}
-
-
 async def leave_group(chat_id: int, phone: str | None = None) -> dict:
     """Leave dari sebuah grup/channel. Return {'success': bool, 'error': str}."""
     from telethon.tl.functions.channels import LeaveChannelRequest
