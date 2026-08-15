@@ -212,20 +212,18 @@ async def run_broadcast(
     phones_to_use: list[str] = []
     clients = get_all_clients()
     if phone:
-        # Jika memilih satu akun, gunakan semua akun yang terkoneksi
-        for ph in clients:
-            if await is_connected(ph):
-                phones_to_use.append(ph)
-        # Jika tidak ada yang terkoneksi, coba gunakan the requested phone
-        if not phones_to_use and await is_connected(phone):
+        # Pakai akun yang dipilih saja
+        if await is_connected(phone):
             phones_to_use = [phone]
     else:
+        # Tidak ada akun dipilih, pakai akun pertama yang terkoneksi
         if PHONE_NUMBER and await is_connected(PHONE_NUMBER):
             phones_to_use = [PHONE_NUMBER]
         else:
             for ph in clients:
                 if await is_connected(ph):
-                    phones_to_use.append(ph)
+                    phones_to_use = [ph]
+                    break
 
     if not phones_to_use:
         # Tidak ada akun terhubung: buat satu run yang akan mencatat kegagalan
