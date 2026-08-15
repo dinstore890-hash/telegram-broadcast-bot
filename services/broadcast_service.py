@@ -149,6 +149,12 @@ async def run_broadcast(
                 if not target:
                     continue
 
+                # Skip channel, hanya kirim ke grup
+                if target.get("chat_type") == "channel":
+                    state["current"] = i + 1
+                    await progress_callback("progress", state)
+                    continue
+
                 state["current"] = i + 1
                 chat_id = target["chat_id"]
                 title   = target["title"]
