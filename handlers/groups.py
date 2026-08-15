@@ -612,11 +612,11 @@ async def wait_leave_delay(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     text = update.message.text.strip()
     try:
         delay = int(text)
-        if delay < 1 or delay > 60:
+        if delay < 1 or delay > 300:
             raise ValueError
     except ValueError:
         await update.message.reply_text(
-            "╭─ ⚠️ Input tidak valid.\n│ Masukkan angka 1-60.\n╰─",
+            "╭─ ⚠️ Input tidak valid.\n│ Masukkan angka 1-300.\n╰─",
             reply_markup=_BACK_BTN,
         )
         return ConversationHandler.END

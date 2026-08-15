@@ -327,11 +327,11 @@ async def wait_broadcast_delay(update: Update, context: ContextTypes.DEFAULT_TYP
     text = update.message.text.strip()
     try:
         delay = float(text)
-        if delay < 0.5 or delay > 60:
+        if delay < 0.5 or delay > 300:
             raise ValueError
     except ValueError:
         await update.message.reply_text(
-            "╭─ ⚠️ Input tidak valid.\n│ Masukkan angka 0.5-60.\n╰─",
+            "╭─ ⚠️ Input tidak valid.\n│ Masukkan angka 0.5-300.\n╰─",
             reply_markup=_SETTINGS_BACK,
         )
         return ConversationHandler.END
