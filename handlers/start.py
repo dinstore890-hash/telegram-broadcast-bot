@@ -57,6 +57,13 @@ async def _build_user_dashboard(user_id: int, first_name: str = "") -> str:
     else:
         greeting = "Selamat Malam"
 
+    # Ambil info bot dari DB settings (bisa diubah admin)
+    bot_title   = db.get_setting("bot_title",   "💎 Gmail Market JASNEB 💎")
+    bot_owner   = db.get_setting("bot_owner",   "@GmailMarket67")
+    bot_grup    = db.get_setting("bot_grup",    "https://t.me/+sVVIxK_QnhthM2E1")
+    bot_channel = db.get_setting("bot_channel", "https://t.me/GmailxMarket")
+    bot_tagline = db.get_setting("bot_tagline", "Gunakan menu untuk mulai promosi instant 🤖")
+
     lic = db.get_license(user_id)
     active = lic and db.is_license_active(user_id)
     if active:
@@ -77,15 +84,15 @@ async def _build_user_dashboard(user_id: int, first_name: str = "") -> str:
         )
 
     return (
-        f"╭─ 💎 Gmail Market JASNEB 💎\n"
+        f"╭─ {bot_title}\n"
         f"│\n"
         f"│ Halo, {first_name + '! ' if first_name else ''}{greeting} 👋\n"
         f"{lisensi_info}"
         f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
-        f"│  𝐎𝐰𝐧𝐞𝐫 @GmailMarket67\n"
-        f"│  👥 Grup    : https://t.me/+sVVIxK_QnhthM2E1\n"
-        f"│  📢 Channel : https://t.me/GmailxMarket\n"
-        f"╰─ Gunakan menu untuk mulai promosi instant 🤖"
+        f"│  𝐎𝐰𝐧𝐞𝐫 {bot_owner}\n"
+        f"│  👥 Grup    : {bot_grup}\n"
+        f"│  📢 Channel : {bot_channel}\n"
+        f"╰─ {bot_tagline}"
     ), active
 
 
@@ -106,6 +113,10 @@ async def _build_dashboard(connected: bool) -> str:
     else:
         greeting = "Selamat Malam"
 
+    bot_title   = db.get_setting("bot_title",   "💎 Gmail Market JASNEB 💎")
+    bot_owner   = db.get_setting("bot_owner",   "@GmailMarket67")
+    bot_tagline = db.get_setting("bot_tagline", "Gunakan menu untuk mulai promosi instant 🤖")
+
     account_status = "🟢 Connected" if connected else "🔴 Disconnected"
     test_badge = "  🧪 TEST MODE AKTIF" if TEST_MODE else ""
 
@@ -122,7 +133,7 @@ async def _build_dashboard(connected: bool) -> str:
         )
 
     return (
-        f"╭─ 💎 Gmail Market JASNEB 💎{test_badge}\n"
+        f"╭─ {bot_title}{test_badge}\n"
         f"│\n"
         f"│ Halo, {greeting} 👋\n"
         f"│\n"
@@ -134,8 +145,8 @@ async def _build_dashboard(connected: bool) -> str:
         f"{broadcast_info}"
         f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
         f"│  📡 Akun : {account_status}\n"
-        f"│       𝐎𝐰𝐧𝐞𝐫 @GmailMarket67\n"
-        f"╰─ Gunakan menu untuk mulai promosi instant 🤖"
+        f"│       𝐎𝐰𝐧𝐞𝐫 {bot_owner}\n"
+        f"╰─ {bot_tagline}"
     )
 
 
@@ -144,6 +155,10 @@ async def _build_admin_dashboard(connected: bool) -> str:
     user_stats = db.get_user_stats()
     from services.broadcast_service import get_state
     state = get_state()
+
+    bot_title   = db.get_setting("bot_title",   "💎 Gmail Market JASNEB 💎")
+    bot_owner   = db.get_setting("bot_owner",   "@GmailMarket67")
+    bot_tagline = db.get_setting("bot_tagline", "Gunakan menu untuk mulai promosi instant 🤖")
 
     account_status = "🟢 Connected" if connected else "🔴 Disconnected"
     test_badge = "  🧪 TEST MODE AKTIF" if TEST_MODE else ""
@@ -161,7 +176,7 @@ async def _build_admin_dashboard(connected: bool) -> str:
         )
 
     return (
-        f"╭─ 💎 Gmail Market JASNEB 💎{test_badge}\n"
+        f"╭─ {bot_title}{test_badge}\n"
         f"│\n"
         f"│ 👑 ADMIN DASHBOARD\n"
         f"│\n"
@@ -178,8 +193,8 @@ async def _build_admin_dashboard(connected: bool) -> str:
         f"│  ⤷  Total Kunjungan : {user_stats['total_visits']}\n"
         f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
         f"│  📡 Akun : {account_status}\n"
-        f"│       𝐎𝐰𝐧𝐞𝐫 @GmailMarket67\n"
-        f"╰─ Gunakan menu untuk mulai promosi instant 🤖"
+        f"│       𝐎𝐰𝐧𝐞𝐫 {bot_owner}\n"
+        f"╰─ {bot_tagline}"
     )
 
 
@@ -267,6 +282,10 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     from config import BROADCAST_DELAY
     broadcast_delay = db.get_setting("broadcast_delay", str(BROADCAST_DELAY))
     leave_delay     = db.get_setting("leave_delay", "5")
+    bot_title       = db.get_setting("bot_title",   "💎 Gmail Market JASNEB 💎")
+    bot_owner       = db.get_setting("bot_owner",   "@GmailMarket67")
+    bot_grup        = db.get_setting("bot_grup",    "https://t.me/+sVVIxK_QnhthM2E1")
+    bot_channel     = db.get_setting("bot_channel", "https://t.me/GmailxMarket")
 
     text = (
         f"╭─ ⚙️ PENGATURAN\n"
@@ -274,6 +293,12 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         f"│  ⤷  Test Mode        : {test_status}\n"
         f"│  ⤷  Broadcast Delay  : {broadcast_delay}s\n"
         f"│  ⤷  Leave Delay      : {leave_delay}s\n"
+        f"│\n"
+        f"│ 📝 INFO BOT (tampil ke user):\n"
+        f"│  ⤷  Judul    : {bot_title}\n"
+        f"│  ⤷  Owner    : {bot_owner}\n"
+        f"│  ⤷  Link Grup: {bot_grup[:30]}...\n"
+        f"│  ⤷  Channel  : {bot_channel[:30]}...\n"
         f"│\n"
         f"╰─ Pilih yang ingin diubah:"
     )
@@ -284,6 +309,7 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 InlineKeyboardButton("⏱️ Broadcast Delay", callback_data="cb_set_broadcast_delay"),
                 InlineKeyboardButton("⏱️ Leave Delay",     callback_data="cb_leavedelay"),
             ],
+            [InlineKeyboardButton("📝 Ubah Info Bot", callback_data="cb_set_botinfo")],
             [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
         ]),
     )
@@ -354,6 +380,159 @@ async def cancel_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     from telegram.ext import ConversationHandler
     await update.message.reply_text("╭─ ❌ Dibatalkan.\n╰─", reply_markup=_SETTINGS_BACK)
     return ConversationHandler.END
+
+
+
+# ── Ubah Info Bot (Admin) ─────────────────────────────────────────────────────
+
+WAIT_BOTINFO = 60  # conversation state
+
+_BOTINFO_FIELDS = {
+    "bot_title":   ("Judul Bot",   "💎 Gmail Market JASNEB 💎"),
+    "bot_owner":   ("Owner",       "@GmailMarket67"),
+    "bot_grup":    ("Link Grup",   "https://t.me/+sVVIxK_QnhthM2E1"),
+    "bot_channel": ("Link Channel","https://t.me/GmailxMarket"),
+    "bot_tagline": ("Tagline",     "Gunakan menu untuk mulai promosi instant 🤖"),
+}
+
+_BOTINFO_BACK = InlineKeyboardMarkup([
+    [InlineKeyboardButton("📝 Info Bot", callback_data="cb_set_botinfo")],
+    [InlineKeyboardButton("⚙️ Pengaturan", callback_data="cb_settings")],
+])
+
+
+async def set_botinfo_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Tampilkan menu pilih field yang mau diubah."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    title   = db.get_setting("bot_title",   "💎 Gmail Market JASNEB 💎")
+    owner   = db.get_setting("bot_owner",   "@GmailMarket67")
+    grup    = db.get_setting("bot_grup",    "https://t.me/+sVVIxK_QnhthM2E1")
+    channel = db.get_setting("bot_channel", "https://t.me/GmailxMarket")
+    tagline = db.get_setting("bot_tagline", "Gunakan menu untuk mulai promosi instant 🤖")
+
+    text = (
+        f"╭─ 📝 UBAH INFO BOT\n"
+        f"│\n"
+        f"│  ⤷  Judul    : {title}\n"
+        f"│  ⤷  Owner    : {owner}\n"
+        f"│  ⤷  Link Grup: {grup}\n"
+        f"│  ⤷  Channel  : {channel}\n"
+        f"│  ⤷  Tagline  : {tagline[:40]}{'...' if len(tagline)>40 else ''}\n"
+        f"│\n"
+        f"╰─ Pilih field yang ingin diubah:"
+    )
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✏️ Judul Bot",   callback_data="cb_editbotinfo_bot_title")],
+            [InlineKeyboardButton("✏️ Owner",       callback_data="cb_editbotinfo_bot_owner")],
+            [InlineKeyboardButton("✏️ Link Grup",   callback_data="cb_editbotinfo_bot_grup")],
+            [InlineKeyboardButton("✏️ Link Channel",callback_data="cb_editbotinfo_bot_channel")],
+            [InlineKeyboardButton("✏️ Tagline",     callback_data="cb_editbotinfo_bot_tagline")],
+            [InlineKeyboardButton("🔄 Reset Default", callback_data="cb_resetbotinfo")],
+            [InlineKeyboardButton("⬅️ Kembali",    callback_data="cb_settings")],
+        ]),
+    )
+
+
+async def edit_botinfo_field_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Mulai konversasi edit 1 field info bot."""
+    from telegram.ext import ConversationHandler
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    field_key = query.data.replace("cb_editbotinfo_", "")
+    if field_key not in _BOTINFO_FIELDS:
+        return ConversationHandler.END
+
+    label, default = _BOTINFO_FIELDS[field_key]
+    current = db.get_setting(field_key, default)
+    context.user_data["editing_botinfo_key"] = field_key
+
+    await query.edit_message_text(
+        f"╭─ ✏️ UBAH {label.upper()}\n"
+        f"│\n"
+        f"│  Nilai sekarang:\n"
+        f"│  {current}\n"
+        f"│\n"
+        f"│ Kirim teks baru untuk {label}.\n"
+        f"╰─ /cancel untuk batal."
+    )
+    return WAIT_BOTINFO
+
+
+async def wait_botinfo_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Terima input teks baru dan simpan ke DB."""
+    from telegram.ext import ConversationHandler
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    field_key = context.user_data.pop("editing_botinfo_key", None)
+    if not field_key or field_key not in _BOTINFO_FIELDS:
+        return ConversationHandler.END
+
+    new_value = update.message.text.strip()
+    if not new_value:
+        await update.message.reply_text("╭─ ⚠️ Input kosong, tidak disimpan.\n╰─", reply_markup=_BOTINFO_BACK)
+        return ConversationHandler.END
+
+    label, _ = _BOTINFO_FIELDS[field_key]
+    db.set_setting(field_key, new_value)
+    db.add_log("INFO", f"Info bot '{field_key}' diubah: {new_value[:50]}")
+
+    await update.message.reply_text(
+        f"╭─ ✅ {label.upper()} DIPERBARUI\n"
+        f"│\n"
+        f"│  {new_value}\n"
+        f"╰─ Dashboard user akan langsung pakai nilai baru ini.",
+        reply_markup=_BOTINFO_BACK,
+    )
+    return ConversationHandler.END
+
+
+async def reset_botinfo_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Reset semua info bot ke nilai default."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    for key, (_, default) in _BOTINFO_FIELDS.items():
+        db.set_setting(key, default)
+    db.add_log("INFO", "Info bot direset ke default.")
+
+    await query.edit_message_text(
+        "╭─ 🔄 INFO BOT DIRESET\n│\n│ Semua nilai dikembalikan ke default.\n╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📝 Lihat Info Bot", callback_data="cb_set_botinfo")],
+            [InlineKeyboardButton("⬅️ Kembali",        callback_data="cb_settings")],
+        ]),
+    )
+
+
+def build_botinfo_conversation():
+    from telegram.ext import ConversationHandler, CallbackQueryHandler, MessageHandler, filters
+    return ConversationHandler(
+        entry_points=[
+            CallbackQueryHandler(edit_botinfo_field_callback, pattern="^cb_editbotinfo_"),
+        ],
+        states={
+            WAIT_BOTINFO: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, wait_botinfo_input),
+            ],
+        },
+        fallbacks=[MessageHandler(filters.COMMAND, cancel_settings)],
+        per_chat=True,
+        per_user=True,
+        per_message=False,
+        allow_reentry=True,
+    )
 
 
 def build_settings_conversation():

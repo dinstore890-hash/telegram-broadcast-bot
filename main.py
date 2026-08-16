@@ -11,6 +11,8 @@ from handlers.start import (
     start_handler, dashboard_callback, settings_callback,
     lisensi_callback, set_broadcast_delay_callback,
     build_settings_conversation,
+    set_botinfo_menu, edit_botinfo_field_callback,
+    reset_botinfo_callback, build_botinfo_conversation,
 )
 from handlers.user_broadcast import build_user_broadcast_conversation
 from handlers.userbot import (
@@ -109,6 +111,7 @@ def build_app():
 
     app.add_handler(build_login_conversation())
     app.add_handler(build_settings_conversation())
+    app.add_handler(build_botinfo_conversation())
     app.add_handler(build_leave_conversation())
     app.add_handler(build_addtarget_conversation())
     app.add_handler(build_broadcast_conversation())
@@ -141,6 +144,8 @@ def build_app():
     app.add_handler(CallbackQueryHandler(delete_license_callback,  pattern="^adm_del_lic_"))
     app.add_handler(CallbackQueryHandler(logs_callback,           pattern="^cb_logs$"))
     app.add_handler(CallbackQueryHandler(settings_callback,       pattern="^cb_settings$"))
+    app.add_handler(CallbackQueryHandler(set_botinfo_menu,        pattern="^cb_set_botinfo$"))
+    app.add_handler(CallbackQueryHandler(reset_botinfo_callback,  pattern="^cb_resetbotinfo$"))
     app.add_handler(CallbackQueryHandler(order_callback,          pattern="^cb_order$"))
     app.add_handler(CallbackQueryHandler(pilih_paket_callback,    pattern="^ord_paket_"))
     app.add_handler(CallbackQueryHandler(lisensi_callback,        pattern="^cb_lisensi$"))
