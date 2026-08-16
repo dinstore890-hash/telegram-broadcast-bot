@@ -22,12 +22,11 @@ def _main_keyboard(is_broadcasting: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton("📜 Logs",      callback_data="cb_logs"),
         ],
         [
-            InlineKeyboardButton("👤 Account",   callback_data="cb_account"),
+            InlineKeyboardButton("👤 Account",    callback_data="cb_account"),
             InlineKeyboardButton("⚙️ Pengaturan", callback_data="cb_settings"),
         ],
-        [
-            InlineKeyboardButton("🔄 Refresh",   callback_data="cb_dashboard"),
-        ],
+        [InlineKeyboardButton("👑 Kelola Lisensi", callback_data="cb_manage_licenses")],
+        [InlineKeyboardButton("🔄 Refresh",        callback_data="cb_dashboard")],
     ])
 
 

@@ -38,7 +38,7 @@ from handlers.broadcast import (
     pause_callback, resume_callback, cancel_running_callback,
     build_broadcast_conversation,
 )
-from handlers.stats import stats_callback
+from handlers.stats import stats_callback, manage_licenses_callback, delete_license_callback
 from config import is_admin
 import database as db
 from handlers.logs import logs_callback
@@ -137,6 +137,8 @@ def build_app():
     app.add_handler(CallbackQueryHandler(resume_callback,         pattern="^bc_resume$"))
     app.add_handler(CallbackQueryHandler(cancel_running_callback, pattern="^bc_cancel$"))
     app.add_handler(CallbackQueryHandler(stats_callback,          pattern="^cb_stats$"))
+    app.add_handler(CallbackQueryHandler(manage_licenses_callback, pattern="^cb_manage_licenses$"))
+    app.add_handler(CallbackQueryHandler(delete_license_callback,  pattern="^adm_del_lic_"))
     app.add_handler(CallbackQueryHandler(logs_callback,           pattern="^cb_logs$"))
     app.add_handler(CallbackQueryHandler(settings_callback,       pattern="^cb_settings$"))
     app.add_handler(CallbackQueryHandler(order_callback,          pattern="^cb_order$"))

@@ -59,3 +59,75 @@ async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
         ]),
     )
+
+
+# ── Kelola Lisensi (Admin) ────────────────────────────────────────────────────
+
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes
+import database as db
+from config import is_admin
+
+
+async def manage_licenses_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    # Ambil semua lisensi
+    with db.get_connection() as conn:
+        rows = conn.execute("""
+            SELECT l.id, l.user_id, l.paket, l.max_grup, l.expired_at,
+                   u.username, u.first_name
+            FROM licenses l
+            LEFT JOIN users u ON l.user_id = u.user_id
+            ORDER BY l.expired_at DESC
+        """).fetchall()
+
+    if not rows:
+        await query.edit_message_text(
+            "╭─ 👑 KELOLA LISENSI\n│\n│ Tidak ada lisensi.\n╰─",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
+            ]),
+        )
+        return
+
+    from datetime import datetime
+    now = datetime.now().isoformat()
+
+    text = "╭─ 👑 KELOLA LISENSI\n│\n"
+    buttons = []
+    for r in rows:
+        status = "✅" if r["expired_at"] > now else "❌"
+        name = r["username"] or r["first_name"] or str(r["user_id"])
+        expired = r["expired_at"][:10]
+        text += f"│ {status} @{name} — {r['paket'][:15]}\n│  ⤷  Exp: {expired}\n"
+        buttons.append([InlineKeyboardButton(
+            f"🗑️ Hapus @{name}",
+            callback_data=f"adm_del_lic_{r['user_id']}"
+        )])
+
+    text += "╰─"
+    buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")])
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+
+async def delete_license_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    user_id = int(query.data.replace("adm_del_lic_", ""))
+    db.revoke_license(user_id)
+
+    await query.edit_message_text(
+        f"╭─ ✅ LISENSI DIHAPUS\n│\n│ User ID: {user_id}\n╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("👑 Kelola Lisensi", callback_data="cb_manage_licenses")],
+            [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
+        ]),
+    )
