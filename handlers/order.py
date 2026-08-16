@@ -81,17 +81,27 @@ async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await query.answer()
 
     await query.edit_message_text(
-        "╭─ 🛒 ORDER JASNEB\n"
-        "│\n"
-        "│ 🇮🇩 PROMO JASNEB BY @GmailMarket67\n"
-        "│ 🔥 Spesial HUT RI ke-81\n"
-        "│\n"
-        "│ Pilih paket yang kamu inginkan:\n"
-        "│\n"
-        "│ 📦 BASIC  = Broadcast pesan teks\n"
-        "│ 🚀 FORWARD = Broadcast dengan forward\n"
-        "│\n"
-        "╰─ Pilih paket di bawah 👇",
+        "☠️ 𝐏 𝐑 𝐈 𝐂 𝐄 𝐋 𝐈 𝐒 𝐓\n"
+        "────── JASNEB BY @GmailMarket67 ──────\n"
+        "\n"
+        "📦 BASIC — Broadcast Pesan Teks\n"
+        "• 20 Grup | 30 Grup | 50 Grup\n"
+        "• Broadcast teks biasa ke grup\n"
+        "• Support delay custom\n"
+        "• Pause & Resume broadcast\n"
+        "• Multi list pesan\n"
+        "• Pakai akun Telegram sendiri\n"
+        "\n"
+        "🚀 FORWARD — Broadcast Forward\n"
+        "• 20 Grup | 30 Grup | 50 Grup\n"
+        "• Semua fitur BASIC\n"
+        "• Broadcast dengan mode forward\n"
+        "• Support media (foto, video, dokumen)\n"
+        "• Support emoji premium\n"
+        "• Support hyperlink\n"
+        "\n"
+        "────────────────────────────────\n"
+        "👇 Pilih paket di bawah:",
         reply_markup=_paket_keyboard(),
     )
 
