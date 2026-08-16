@@ -24,21 +24,13 @@ _BACK_BTN = InlineKeyboardMarkup([
 # ── Paket & Harga ─────────────────────────────────────────────────────────────
 
 PAKET = {
-    "basic_20":   {"label": "JASNEB BASIC 20 Grup",   "max_grup": 20},
-    "basic_30":   {"label": "JASNEB BASIC 30 Grup",   "max_grup": 30},
-    "basic_50":   {"label": "JASNEB BASIC 50 Grup",   "max_grup": 50},
-    "forward_20": {"label": "JASNEB FORWARD 20 Grup", "max_grup": 20},
-    "forward_30": {"label": "JASNEB FORWARD 30 Grup", "max_grup": 30},
-    "forward_50": {"label": "JASNEB FORWARD 50 Grup", "max_grup": 50},
+    "spesial":    {"label": "JASNEB SPESIAL",    "max_grup": 50},
+    "spesialpp":  {"label": "JASNEB SPESIAL++",  "max_grup": 100},
 }
 
 HARGA = {
-    "basic_20":   {3: 15000, 5: 20000, 7: 25000, 10: 30000, 15: 35000, 30: 60000},
-    "basic_30":   {3: 20000, 5: 25000, 7: 35000, 15: 50000, 30: 90000},
-    "basic_50":   {3: 25000, 5: 40000, 7: 55000, 15: 70000, 30: 135000},
-    "forward_20": {3: 20000, 5: 28000, 7: 38000, 15: 52000, 30: 90000},
-    "forward_30": {3: 35000, 5: 40000, 7: 55000, 15: 70000, 30: 130000},
-    "forward_50": {3: 40000, 5: 55000, 7: 80000, 15: 95000, 30: 270000},
+    "spesial":   {7: 5000, 15: 8000, 30: 15000},
+    "spesialpp": {7: 10000, 15: 15000, 30: 25000},
 }
 
 
@@ -48,13 +40,9 @@ def _fmt_harga(harga: int) -> str:
 
 def _paket_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📦 BASIC 20 Grup",   callback_data="ord_paket_basic_20"),
-         InlineKeyboardButton("📦 BASIC 30 Grup",   callback_data="ord_paket_basic_30")],
-        [InlineKeyboardButton("📦 BASIC 50 Grup",   callback_data="ord_paket_basic_50")],
-        [InlineKeyboardButton("🚀 FORWARD 20 Grup", callback_data="ord_paket_forward_20"),
-         InlineKeyboardButton("🚀 FORWARD 30 Grup", callback_data="ord_paket_forward_30")],
-        [InlineKeyboardButton("🚀 FORWARD 50 Grup", callback_data="ord_paket_forward_50")],
-        [InlineKeyboardButton("⬅️ Kembali",          callback_data="cb_dashboard")],
+        [InlineKeyboardButton("🔥 SPESIAL",    callback_data="ord_paket_spesial")],
+        [InlineKeyboardButton("⚡ SPESIAL++",  callback_data="ord_paket_spesialpp")],
+        [InlineKeyboardButton("⬅️ Kembali",    callback_data="cb_dashboard")],
     ])
 
 
@@ -81,27 +69,32 @@ async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await query.answer()
 
     await query.edit_message_text(
-        "☠️ 𝐏 𝐑 𝐈 𝐂 𝐄 𝐋 𝐈 𝐒 𝐓\n"
-        "────── JASNEB BY @GmailMarket67 ──────\n"
+        "💎 JASNEB USERBOT BY @GmailMarket67\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
         "\n"
-        "📦 BASIC — Broadcast Pesan Teks\n"
-        "• 20 Grup | 30 Grup | 50 Grup\n"
-        "• Broadcast teks biasa ke grup\n"
-        "• Support delay custom\n"
-        "• Pause & Resume broadcast\n"
-        "• Multi list pesan\n"
+        "🔥 SPESIAL — 50 Grup\n"
+        "• 7 Hari → Rp. 5.000\n"
+        "• 15 Hari → Rp. 8.000\n"
+        "• 30 Hari → Rp. 15.000\n"
+        "\n"
+        "⚡ SPESIAL++ — 100 Grup\n"
+        "• 7 Hari → Rp. 10.000\n"
+        "• 15 Hari → Rp. 15.000\n"
+        "• 30 Hari → Rp. 25.000\n"
+        "\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "✅ Fitur Semua Paket:\n"
         "• Pakai akun Telegram sendiri\n"
+        "• Broadcast 24 jam nonstop\n"
+        "• Multi list pesan\n"
+        "• Delay custom\n"
+        "• Stop & lanjut kapan saja\n"
         "\n"
-        "🚀 FORWARD — Broadcast Forward\n"
-        "• 20 Grup | 30 Grup | 50 Grup\n"
-        "• Semua fitur BASIC\n"
-        "• Broadcast dengan mode forward\n"
-        "• Support media (foto, video, dokumen)\n"
-        "• Support emoji premium\n"
-        "• Support hyperlink\n"
+        "⚡ Bonus Spesial++:\n"
+        "• 100 grup (2x lebih banyak)\n"
+        "• Support media & emoji premium\n"
         "\n"
-        "────────────────────────────────\n"
-        "👇 Pilih paket di bawah:",
+        "👇 Pilih paket:",
         reply_markup=_paket_keyboard(),
     )
 
@@ -121,11 +114,13 @@ async def pilih_paket_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     )
 
     await query.edit_message_text(
-        f"╭─ 📦 {paket['label']}\n"
-        f"│\n"
+        f"💎 {paket['label']}\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"\n"
         f"{lines}\n"
-        f"│\n"
-        f"╰─ Pilih durasi di bawah 👇",
+        f"\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"👇 Pilih durasi:",
         reply_markup=_durasi_keyboard(paket_key),
     )
 
