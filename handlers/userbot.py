@@ -849,18 +849,69 @@ async def ub_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int
 
     delay = db.get_user_setting(user_id, "delay", "5")
 
+    if int(delay) <= 5:
+        status = "⚡ Cepat (risiko limit tinggi)"
+    elif int(delay) <= 15:
+        status = "✅ Aman"
+    else:
+        status = "🛡️ Sangat Aman"
+
     await query.edit_message_text(
-        f"╭─ ⚙️ PENGATURAN\n"
-        f"│\n"
-        f"│  ⤷  Delay broadcast: {delay} detik\n"
-        f"│\n"
-        f"╰─ Pilih yang ingin diubah:",
+        f"⚙️ PENGATURAN JEDA\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"\n"
+        f"⏱️ Jeda saat ini : {delay} detik\n"
+        f"📊 Status        : {status}\n"
+        f"\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"Pilih jeda per grup:",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("⏱️ Atur Delay", callback_data="ub_set_delay")],
-            [InlineKeyboardButton("⬅️ Kembali", callback_data="ub_home")],
+            [
+                InlineKeyboardButton("⚡ 3 detik",  callback_data="ub_setdelay_3"),
+                InlineKeyboardButton("🔥 5 detik",  callback_data="ub_setdelay_5"),
+            ],
+            [
+                InlineKeyboardButton("✅ 10 detik", callback_data="ub_setdelay_10"),
+                InlineKeyboardButton("✅ 15 detik", callback_data="ub_setdelay_15"),
+            ],
+            [
+                InlineKeyboardButton("🛡️ 30 detik", callback_data="ub_setdelay_30"),
+                InlineKeyboardButton("🛡️ 60 detik", callback_data="ub_setdelay_60"),
+            ],
+            [InlineKeyboardButton("✏️ Custom", callback_data="ub_set_delay")],
+            [InlineKeyboardButton("⬅️ Kembali",    callback_data="ub_home")],
         ]),
     )
     return ConversationHandler.END
+
+
+async def ub_setdelay_preset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    delay = int(query.data.replace("ub_setdelay_", ""))
+    db.set_user_setting(user_id, "delay", str(delay))
+
+    if delay <= 5:
+        status = "⚡ Cepat (risiko limit tinggi)"
+    elif delay <= 15:
+        status = "✅ Aman"
+    else:
+        status = "🛡️ Sangat Aman"
+
+    await query.edit_message_text(
+        f"✅ JEDA DIPERBARUI\n"
+        f"━━━━━━━━━━━━━━━━━━━━\n"
+        f"\n"
+        f"⏱️ Jeda : {delay} detik per grup\n"
+        f"📊 Status: {status}\n"
+        f"\n"
+        f"━━━━━━━━━━━━━━━━━━━━",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⚙️ Pengaturan", callback_data="ub_settings")],
+            [InlineKeyboardButton("🏠 Dashboard",  callback_data="ub_home")],
+        ]),
+    )
 
 
 async def ub_set_delay_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
