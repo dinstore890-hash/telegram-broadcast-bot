@@ -920,11 +920,14 @@ async def ub_set_delay_start(update: Update, context: ContextTypes.DEFAULT_TYPE)
     user_id = query.from_user.id
     current = db.get_user_setting(user_id, "delay", "5")
     await query.edit_message_text(
-        f"╭─ ⏱️ ATUR DELAY\n"
+        f"╭─ ⏱️ ATUR DELAY CUSTOM\n"
         f"│\n"
         f"│  ⤷  Delay saat ini: {current} detik\n"
         f"│\n"
-        f"╰─ Kirim angka delay (1-300 detik):"
+        f"╰─ Kirim angka delay (1-300 detik):",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⬅️ Kembali", callback_data="ub_settings")]
+        ]),
     )
     return UB_WAIT_DELAY
 
