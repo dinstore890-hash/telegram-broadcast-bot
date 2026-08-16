@@ -120,6 +120,7 @@ async def ub_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             InlineKeyboardButton("📢 Broadcast", callback_data="ub_broadcast_menu"),
             InlineKeyboardButton("⚙️ Pengaturan", callback_data="ub_settings"),
         ],
+        [InlineKeyboardButton("⚠️ Bantuan", callback_data="ub_bantuan")],
         [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
     ])
 
@@ -841,6 +842,50 @@ async def ub_stop_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 
 # ── Pengaturan ────────────────────────────────────────────────────────────────
+
+async def ub_bantuan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    await query.edit_message_text(
+        "⚠️ BANTUAN — JASNEB USERBOT\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "\n"
+        "📖 CARA PAKAI:\n"
+        "\n"
+        "1️⃣ Login Akun\n"
+        "   • Tap 📱 Akun → 🔑 Login\n"
+        "   • Kirim nomor HP → masukkan OTP\n"
+        "\n"
+        "2️⃣ Tambah Grup Target\n"
+        "   • Tap 👥 Grup & List\n"
+        "   • Import dari akun atau tambah manual\n"
+        "\n"
+        "3️⃣ Tambah Pesan\n"
+        "   • Tap 📝 Tambah Pesan\n"
+        "   • Isi judul dan isi pesan\n"
+        "\n"
+        "4️⃣ Broadcast\n"
+        "   • Tap 📢 Broadcast\n"
+        "   • Pilih pesan → langsung kirim\n"
+        "\n"
+        "⚙️ Atur jeda di menu Pengaturan\n"
+        "   ✅ 10-15 detik = aman\n"
+        "   🛡️ 30+ detik = sangat aman\n"
+        "\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "📞 CONTACT SUPPORT:\n"
+        "• CS: @GmailMarket67\n"
+        "• Channel: @GmailxMarket\n"
+        "• Grup: https://t.me/+sVVIxK_QnhthM2E1",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("💬 Chat CS", url="https://t.me/GmailMarket67")],
+            [InlineKeyboardButton("📢 Channel", url="https://t.me/GmailxMarket")],
+            [InlineKeyboardButton("👥 Grup", url="https://t.me/+sVVIxK_QnhthM2E1")],
+            [InlineKeyboardButton("⬅️ Kembali", callback_data="ub_home")],
+        ]),
+    )
+
 
 async def ub_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query

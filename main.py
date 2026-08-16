@@ -19,7 +19,7 @@ from handlers.userbot import (
     ub_import_groups, ub_reset_groups,
     ub_list_messages, ub_del_message, ub_reset_messages,
     ub_broadcast_menu, ub_start_broadcast, ub_stop_broadcast,
-    ub_settings, ub_setdelay_preset,
+    ub_settings, ub_setdelay_preset, ub_bantuan,
     build_userbot_conversation,
 )
 from handlers.account import (
@@ -164,6 +164,7 @@ def build_app():
     app.add_handler(CallbackQueryHandler(ub_stop_broadcast,   pattern="^ub_stop_broadcast$"))
     app.add_handler(CallbackQueryHandler(ub_settings,         pattern="^ub_settings$"))
     app.add_handler(CallbackQueryHandler(ub_setdelay_preset,  pattern="^ub_setdelay_"))
+    app.add_handler(CallbackQueryHandler(ub_bantuan,          pattern="^ub_bantuan$"))
 
     return app
 
