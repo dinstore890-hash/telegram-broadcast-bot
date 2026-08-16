@@ -13,6 +13,15 @@ from handlers.start import (
     build_settings_conversation,
 )
 from handlers.user_broadcast import build_user_broadcast_conversation
+from handlers.userbot import (
+    ub_home, ub_account, ub_login_start, ub_logout,
+    ub_groups, ub_list_groups, ub_activate_all,
+    ub_import_groups, ub_reset_groups,
+    ub_list_messages, ub_del_message, ub_reset_messages,
+    ub_broadcast_menu, ub_start_broadcast, ub_stop_broadcast,
+    ub_settings,
+    build_userbot_conversation,
+)
 from handlers.account import (
     account_callback, reconnect_callback, logout_callback,
     build_login_conversation, delacc_callback,
@@ -105,6 +114,7 @@ def build_app():
     app.add_handler(build_broadcast_conversation())
     app.add_handler(build_order_conversation())
     app.add_handler(build_user_broadcast_conversation())
+    app.add_handler(build_userbot_conversation())
 
     app.add_handler(CallbackQueryHandler(dashboard_callback,      pattern="^cb_dashboard$"))
     app.add_handler(CallbackQueryHandler(account_callback,        pattern="^cb_account$"))
@@ -134,6 +144,23 @@ def build_app():
     app.add_handler(CallbackQueryHandler(lisensi_callback,        pattern="^cb_lisensi$"))
     app.add_handler(CallbackQueryHandler(admin_confirm_callback,  pattern="^adm_confirm_"))
     app.add_handler(CallbackQueryHandler(admin_reject_callback,   pattern="^adm_reject_"))
+
+    # ── Userbot handlers ──────────────────────────────────────────────────────
+    app.add_handler(CallbackQueryHandler(ub_home,             pattern="^ub_home$"))
+    app.add_handler(CallbackQueryHandler(ub_account,          pattern="^ub_account$"))
+    app.add_handler(CallbackQueryHandler(ub_logout,           pattern="^ub_logout$"))
+    app.add_handler(CallbackQueryHandler(ub_groups,           pattern="^ub_groups$"))
+    app.add_handler(CallbackQueryHandler(ub_list_groups,      pattern="^ub_list_groups$"))
+    app.add_handler(CallbackQueryHandler(ub_activate_all,     pattern="^ub_activate_all$"))
+    app.add_handler(CallbackQueryHandler(ub_import_groups,    pattern="^ub_import_groups$"))
+    app.add_handler(CallbackQueryHandler(ub_reset_groups,     pattern="^ub_reset_groups$"))
+    app.add_handler(CallbackQueryHandler(ub_list_messages,    pattern="^ub_list_messages$"))
+    app.add_handler(CallbackQueryHandler(ub_del_message,      pattern="^ub_del_msg_"))
+    app.add_handler(CallbackQueryHandler(ub_reset_messages,   pattern="^ub_reset_messages$"))
+    app.add_handler(CallbackQueryHandler(ub_broadcast_menu,   pattern="^ub_broadcast_menu$"))
+    app.add_handler(CallbackQueryHandler(ub_start_broadcast,  pattern="^ub_start_bc_"))
+    app.add_handler(CallbackQueryHandler(ub_stop_broadcast,   pattern="^ub_stop_broadcast$"))
+    app.add_handler(CallbackQueryHandler(ub_settings,         pattern="^ub_settings$"))
 
     return app
 

@@ -1,6 +1,7 @@
 import sqlite3
 from datetime import datetime
 from config import DATABASE_PATH
+import sqlite3
 
 
 def get_connection() -> sqlite3.Connection:
@@ -108,6 +109,50 @@ def init_db() -> None:
                 id         INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id    INTEGER NOT NULL,
                 visited_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS user_accounts (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id        INTEGER NOT NULL,
+                phone          TEXT NOT NULL,
+                string_session TEXT NOT NULL,
+                name           TEXT DEFAULT '',
+                username       TEXT DEFAULT '',
+                is_active      INTEGER DEFAULT 1,
+                added_at       TEXT NOT NULL,
+                UNIQUE(user_id, phone)
+            );
+
+            CREATE TABLE IF NOT EXISTS user_targets (
+                id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id   INTEGER NOT NULL,
+                chat_id   INTEGER NOT NULL,
+                title     TEXT NOT NULL,
+                username  TEXT DEFAULT '',
+                chat_type TEXT DEFAULT 'supergroup',
+                is_active INTEGER DEFAULT 1,
+                added_at  TEXT NOT NULL,
+                UNIQUE(user_id, chat_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS user_messages (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    INTEGER NOT NULL,
+                title      TEXT NOT NULL,
+                content    TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS user_broadcasts (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id     INTEGER NOT NULL,
+                message     TEXT NOT NULL,
+                status      TEXT DEFAULT 'pending',
+                total       INTEGER DEFAULT 0,
+                success     INTEGER DEFAULT 0,
+                failed      INTEGER DEFAULT 0,
+                created_at  TEXT NOT NULL,
+                finished_at TEXT
             );
         """)
 
@@ -475,3 +520,162 @@ def get_stats() -> dict:
         "total_success":    success,
         "total_failed":     failed,
     }
+
+
+# ── User Accounts (per-user Telethon session) ─────────────────────────────────
+
+def add_user_account(user_id: int, phone: str, string_session: str, name: str = "", username: str = "") -> bool:
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO user_accounts (user_id, phone, string_session, name, username, added_at) VALUES (?,?,?,?,?,?)",
+                (user_id, phone, string_session, name, username, datetime.now().isoformat()),
+            )
+        return True
+    except Exception:
+        return False
+
+
+def get_user_account(user_id: int) -> sqlite3.Row | None:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM user_accounts WHERE user_id = ? AND is_active = 1", (user_id,)).fetchone()
+
+
+def delete_user_account(user_id: int) -> bool:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM user_accounts WHERE user_id = ?", (user_id,))
+    return True
+
+
+def update_user_account_session(user_id: int, string_session: str) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE user_accounts SET string_session = ? WHERE user_id = ?", (string_session, user_id))
+
+
+# ── User Targets ──────────────────────────────────────────────────────────────
+
+def add_user_target(user_id: int, chat_id: int, title: str, username: str, chat_type: str) -> bool:
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                "INSERT INTO user_targets (user_id, chat_id, title, username, chat_type, added_at) VALUES (?,?,?,?,?,?)",
+                (user_id, chat_id, title, username, chat_type, datetime.now().isoformat()),
+            )
+        return True
+    except sqlite3.IntegrityError:
+        return False
+
+
+def get_user_targets(user_id: int) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM user_targets WHERE user_id = ? ORDER BY added_at DESC", (user_id,)).fetchall()
+
+
+def get_active_user_targets(user_id: int) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM user_targets WHERE user_id = ? AND is_active = 1", (user_id,)).fetchall()
+
+
+def delete_user_target(user_id: int, target_id: int) -> bool:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM user_targets WHERE id = ? AND user_id = ?", (target_id, user_id))
+    return True
+
+
+def clear_user_targets(user_id: int) -> int:
+    with get_connection() as conn:
+        cur = conn.execute("DELETE FROM user_targets WHERE user_id = ?", (user_id,))
+        return cur.rowcount
+
+
+def activate_all_user_targets(user_id: int) -> int:
+    with get_connection() as conn:
+        cur = conn.execute("UPDATE user_targets SET is_active = 1 WHERE user_id = ? AND is_active = 0", (user_id,))
+        return cur.rowcount
+
+
+def bulk_add_user_targets(user_id: int, targets: list[dict]) -> tuple[int, int]:
+    added = skipped = 0
+    for t in targets:
+        ok = add_user_target(user_id, t["chat_id"], t["title"], t["username"], t["chat_type"])
+        if ok:
+            added += 1
+        else:
+            skipped += 1
+    return added, skipped
+
+
+# ── User Messages (template pesan) ───────────────────────────────────────────
+
+def add_user_message(user_id: int, title: str, content: str) -> int:
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO user_messages (user_id, title, content, created_at) VALUES (?,?,?,?)",
+            (user_id, title, content, datetime.now().isoformat()),
+        )
+        return cur.lastrowid
+
+
+def get_user_messages(user_id: int) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM user_messages WHERE user_id = ? ORDER BY created_at DESC", (user_id,)).fetchall()
+
+
+def get_user_message_by_id(msg_id: int, user_id: int) -> sqlite3.Row | None:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM user_messages WHERE id = ? AND user_id = ?", (msg_id, user_id)).fetchone()
+
+
+def delete_user_message(msg_id: int, user_id: int) -> bool:
+    with get_connection() as conn:
+        conn.execute("DELETE FROM user_messages WHERE id = ? AND user_id = ?", (msg_id, user_id))
+    return True
+
+
+def clear_user_messages(user_id: int) -> int:
+    with get_connection() as conn:
+        cur = conn.execute("DELETE FROM user_messages WHERE user_id = ?", (user_id,))
+        return cur.rowcount
+
+
+# ── User Broadcasts ───────────────────────────────────────────────────────────
+
+def create_user_broadcast(user_id: int, message: str, total: int) -> int:
+    with get_connection() as conn:
+        cur = conn.execute(
+            "INSERT INTO user_broadcasts (user_id, message, status, total, created_at) VALUES (?,?,?,?,?)",
+            (user_id, message, "running", total, datetime.now().isoformat()),
+        )
+        return cur.lastrowid
+
+
+def finish_user_broadcast(broadcast_id: int, success: int, failed: int) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "UPDATE user_broadcasts SET status = 'completed', success = ?, failed = ?, finished_at = ? WHERE id = ?",
+            (success, failed, datetime.now().isoformat(), broadcast_id),
+        )
+
+
+def get_user_broadcast_history(user_id: int, limit: int = 5) -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM user_broadcasts WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+
+
+# ── User Settings ─────────────────────────────────────────────────────────────
+
+def get_user_setting(user_id: int, key: str, default: str = "") -> str:
+    with get_connection() as conn:
+        row = conn.execute("SELECT value FROM settings WHERE key = ?", (f"user_{user_id}_{key}",)).fetchone()
+        return row["value"] if row else default
+
+
+def set_user_setting(user_id: int, key: str, value: str) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)",
+            (f"user_{user_id}_{key}", value),
+        )

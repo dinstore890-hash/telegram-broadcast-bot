@@ -24,6 +24,7 @@ _BACK_BTN = InlineKeyboardMarkup([
 
 
 async def user_broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Entry point dari dashboard user — arahkan ke sistem userbot baru."""
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
@@ -42,28 +43,10 @@ async def user_broadcast_start(update: Update, context: ContextTypes.DEFAULT_TYP
         )
         return ConversationHandler.END
 
-    max_grup = lic["max_grup"]
-    targets = db.get_active_targets()
-    available = len(targets)
-    use_count = min(max_grup, available)
-
-    context.user_data["ub_max_grup"] = max_grup
-    context.user_data["ub_use_count"] = use_count
-
-    await query.edit_message_text(
-        f"╭─ 📢 BROADCAST\n"
-        f"│\n"
-        f"│ 🎫 Paket    : {lic['paket']}\n"
-        f"│ 👥 Max Grup : {max_grup}\n"
-        f"│ 📊 Tersedia : {available} grup\n"
-        f"│ 🚀 Akan kirim ke {use_count} grup\n"
-        f"│\n"
-        f"╰─ Ketik pesan yang ingin dibroadcast 👇",
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("❌ Batal", callback_data="cb_dashboard")]
-        ]),
-    )
-    return WAIT_USER_MESSAGE
+    # Arahkan ke dashboard userbot baru
+    from handlers.userbot import ub_home
+    await ub_home(update, context)
+    return ConversationHandler.END
 
 
 async def wait_user_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
