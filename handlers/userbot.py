@@ -169,26 +169,53 @@ async def ub_account(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def ub_login_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
+    from telegram import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
+
     await query.edit_message_text(
         "╭─ 🔑 LOGIN AKUN\n"
         "│\n"
-        "│ Kirim nomor HP kamu.\n"
-        "│ Format: +628xxxxxxxxxx\n"
+        "│ Tap tombol di bawah untuk\n"
+        "│ mengirim nomor HP kamu.\n"
         "│\n"
-        "╰─ Ketik /cancel untuk batal."
+        "╰─ Atau ketik /cancel untuk batal."
+    )
+    await query.message.reply_text(
+        "👇 Tap tombol untuk kirim nomor:",
+        reply_markup=ReplyKeyboardMarkup(
+            [[KeyboardButton("📁 Kirim Nomor 📁", request_contact=True)]],
+            one_time_keyboard=True,
+            resize_keyboard=True,
+        ),
     )
     return UB_WAIT_PHONE
 
 
 async def ub_wait_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    phone = update.message.text.strip()
+    from telegram import ReplyKeyboardRemove
+
     user_id = update.effective_user.id
 
-    if not phone.startswith("+"):
-        await update.message.reply_text("╭─ ⚠️ Format salah.\n│ Contoh: +628123456789\n╰─")
+    # Terima dari contact share atau teks manual
+    if update.message.contact:
+        phone = update.message.contact.phone_number
+        if not phone.startswith("+"):
+            phone = f"+{phone}"
+    elif update.message.text:
+        phone = update.message.text.strip()
+        if not phone.startswith("+"):
+            await update.message.reply_text(
+                "╭─ ⚠️ Format salah.\n│ Contoh: +628123456789\n╰─",
+                reply_markup=ReplyKeyboardRemove(),
+            )
+            return UB_WAIT_PHONE
+    else:
+        await update.message.reply_text("╭─ ⚠️ Kirim nomor HP dulu.\n╰─")
         return UB_WAIT_PHONE
 
-    await update.message.reply_text("╭─ ⏳ Mengirim OTP...\n╰─")
+    await update.message.reply_text(
+        "╭─ ⏳ Mengirim OTP...\n╰─",
+        reply_markup=ReplyKeyboardRemove(),
+    )
 
     try:
         client = TelegramClient(StringSession(), API_ID, API_HASH)
@@ -203,12 +230,15 @@ async def ub_wait_phone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
             f"│\n"
             f"│ Kode OTP dikirim ke {phone}\n"
             f"│\n"
-            f"╰─ Kirim kode OTP kamu (pisah dengan spasi)\n"
-            f"Contoh: 1 2 3 4 5"
+            f"╰─ Kirim kode OTP kamu\n"
+            f"Pisah dengan spasi. Contoh: 1 2 3 4 5"
         )
         return UB_WAIT_OTP
     except Exception as e:
-        await update.message.reply_text(f"╭─ ❌ Gagal kirim OTP\n│ {e}\n╰─", reply_markup=_BACK_BTN)
+        await update.message.reply_text(
+            f"╭─ ❌ Gagal kirim OTP\n│ {e}\n╰─",
+            reply_markup=_BACK_BTN,
+        )
         return ConversationHandler.END
 
 
@@ -883,7 +913,9 @@ def build_userbot_conversation() -> ConversationHandler:
             CallbackQueryHandler(ub_set_delay_start,   pattern="^ub_set_delay$"),
         ],
         states={
-            UB_WAIT_PHONE:       [MessageHandler(filters.TEXT & ~filters.COMMAND, ub_wait_phone)],
+            UB_WAIT_PHONE:       [
+                MessageHandler(filters.CONTACT | (filters.TEXT & ~filters.COMMAND), ub_wait_phone)
+            ],
             UB_WAIT_OTP:         [MessageHandler(filters.TEXT & ~filters.COMMAND, ub_wait_otp)],
             UB_WAIT_2FA:         [MessageHandler(filters.TEXT & ~filters.COMMAND, ub_wait_2fa)],
             UB_WAIT_ADD_GROUP:   [MessageHandler(filters.TEXT & ~filters.COMMAND, ub_wait_add_group)],
