@@ -711,8 +711,9 @@ async def ub_broadcast_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     buttons = []
     for m in messages:
+        title = m['title'] if m['title'] else f"Pesan #{m['id']}"
         buttons.append([InlineKeyboardButton(
-            f"📨 {m['title']}",
+            f"📨 {title}",
             callback_data=f"ub_start_bc_{m['id']}"
         )])
     buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="ub_home")])
