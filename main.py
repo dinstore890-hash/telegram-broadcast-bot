@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+import asyncio
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
 
 from config import BOT_TOKEN, LOG_DIR
@@ -84,6 +86,71 @@ async def post_init(app) -> None:
         logger.info(f"Telethon connected: {len(connected)} akun — {connected}")
     else:
         logger.warning("Telethon: belum ada akun login. Gunakan menu 👤 Account untuk tambah akun.")
+
+    # Start background task notifikasi expired
+    asyncio.create_task(_expired_notif_loop(app.bot))
+
+
+async def _expired_notif_loop(bot) -> None:
+    """Cek setiap hari jam 09.00 WIB — kirim notifikasi H-3 dan H-1 expired."""
+    from datetime import datetime, timezone, timedelta
+    WIB = timezone(timedelta(hours=7))
+    while True:
+        try:
+            now = datetime.now(WIB)
+            # Hitung detik sampai jam 09.00 WIB berikutnya
+            target = now.replace(hour=9, minute=0, second=0, microsecond=0)
+            if now >= target:
+                target += timedelta(days=1)
+            wait_seconds = (target - now).total_seconds()
+            logger.info(f"Notifikasi expired: menunggu {int(wait_seconds//3600)} jam {int((wait_seconds%3600)//60)} menit")
+            await asyncio.sleep(wait_seconds)
+
+            # Kirim notifikasi H-3
+            for lic in db.get_expiring_licenses(3):
+                try:
+                    await bot.send_message(
+                        chat_id=lic["user_id"],
+                        text=(
+                            "⚠️ *LISENSI HAMPIR HABIS*\n\n"
+                            f"Lisensi kamu tinggal *3 hari lagi*!\n"
+                            f"Paket: {lic['paket']}\n"
+                            f"Expired: {lic['expired_at'][:10]}\n\n"
+                            "Perpanjang sekarang biar tidak terputus 👇"
+                        ),
+                        parse_mode="Markdown",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🛒 Perpanjang Sekarang", callback_data="cb_order")
+                        ]])
+                    )
+                    logger.info(f"Notif H-3 terkirim ke user {lic['user_id']}")
+                except Exception as e:
+                    logger.warning(f"Notif H-3 gagal user {lic['user_id']}: {e}")
+
+            # Kirim notifikasi H-1
+            for lic in db.get_expiring_licenses(1):
+                try:
+                    await bot.send_message(
+                        chat_id=lic["user_id"],
+                        text=(
+                            "🚨 *LISENSI HABIS BESOK!*\n\n"
+                            f"Lisensi kamu habis *besok*!\n"
+                            f"Paket: {lic['paket']}\n"
+                            f"Expired: {lic['expired_at'][:10]}\n\n"
+                            "Segera perpanjang sebelum akses terputus! 👇"
+                        ),
+                        parse_mode="Markdown",
+                        reply_markup=InlineKeyboardMarkup([[
+                            InlineKeyboardButton("🛒 Perpanjang Sekarang", callback_data="cb_order")
+                        ]])
+                    )
+                    logger.info(f"Notif H-1 terkirim ke user {lic['user_id']}")
+                except Exception as e:
+                    logger.warning(f"Notif H-1 gagal user {lic['user_id']}: {e}")
+
+        except Exception as e:
+            logger.error(f"_expired_notif_loop error: {e}")
+            await asyncio.sleep(3600)  # retry 1 jam kemudian
 
 
 async def post_shutdown(app) -> None:

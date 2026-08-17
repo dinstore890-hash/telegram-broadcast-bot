@@ -390,6 +390,19 @@ def is_license_active(user_id: int) -> bool:
     return datetime.now().isoformat() < row["expired_at"]
 
 
+def get_expiring_licenses(days: int) -> list[sqlite3.Row]:
+    """Ambil lisensi yang expired tepat N hari lagi (untuk notifikasi H-3, H-1)."""
+    from datetime import timezone, timedelta
+    WIB = timezone(timedelta(hours=7))
+    now = datetime.now(WIB)
+    target_date = (now + timedelta(days=days)).strftime("%Y-%m-%d")
+    with get_connection() as conn:
+        return conn.execute(
+            "SELECT * FROM licenses WHERE expired_at LIKE ? AND expired_at > ?",
+            (f"{target_date}%", now.isoformat()),
+        ).fetchall()
+
+
 def activate_license(user_id: int, paket: str, max_grup: int, durasi_hari: int) -> None:
     from datetime import timedelta
     now = datetime.now()
