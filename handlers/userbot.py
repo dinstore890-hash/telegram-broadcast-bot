@@ -739,6 +739,20 @@ async def ub_wait_msg_content(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 # Cancel flags per user
 _ub_cancel: dict[int, bool] = {}
+_ub_paused: dict[int, bool] = {}
+
+
+def _stop_pause_btn(paused: bool = False):
+    if paused:
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("▶️ Lanjut", callback_data="ub_resume_broadcast"),
+             InlineKeyboardButton("🛑 Stop", callback_data="ub_stop_broadcast")],
+        ])
+    else:
+        return InlineKeyboardMarkup([
+            [InlineKeyboardButton("⏸️ Pause", callback_data="ub_pause_broadcast"),
+             InlineKeyboardButton("🛑 Stop", callback_data="ub_stop_broadcast")],
+        ])
 
 
 async def ub_broadcast_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -811,6 +825,7 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
     targets = db.get_active_user_targets(user_id)
     delay = int(db.get_user_setting(user_id, "delay", "5"))
     _ub_cancel[user_id] = False
+    _ub_paused[user_id] = False
 
     # Tentukan watermark berdasarkan paket
     lic = db.get_license(user_id)
@@ -831,7 +846,7 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"│  ⤷  Progress: 0/{len(targets)}\n"
         f"│  ⤷  Delay   : {delay} detik\n"
         f"╰─ Mohon tunggu...",
-        reply_markup=_stop_btn(),
+        reply_markup=_stop_pause_btn(),
     )
 
     broadcast_id = db.create_user_broadcast(user_id, msg_obj["content"], len(targets))
@@ -841,6 +856,27 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
         for i, target in enumerate(targets, 1):
             if _ub_cancel.get(user_id):
                 break
+
+            # Cek pause — tunggu sampai di-resume
+            while _ub_paused.get(user_id):
+                try:
+                    await msg.edit_text(
+                        f"╭─ ⏸️ BROADCAST DIJEDA\n"
+                        f"│  ⤷  Progress: {i-1}/{len(targets)}\n"
+                        f"│  ⤷  Berhasil: {success}\n"
+                        f"│  ⤷  Gagal   : {failed}\n"
+                        f"╰─ Tekan ▶️ Lanjut untuk melanjutkan...",
+                        reply_markup=_stop_pause_btn(paused=True),
+                    )
+                except Exception:
+                    pass
+                await asyncio.sleep(1)
+                if _ub_cancel.get(user_id):
+                    break
+
+            if _ub_cancel.get(user_id):
+                break
+
             if i % 5 == 0 or i == 1:
                 try:
                     await msg.edit_text(
@@ -849,7 +885,7 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
                         f"│  ⤷  Berhasil: {success}\n"
                         f"│  ⤷  Gagal   : {failed}\n"
                         f"╰─ Mohon tunggu...",
-                        reply_markup=_stop_btn(),
+                        reply_markup=_stop_pause_btn(),
                     )
                 except Exception:
                     pass
@@ -889,6 +925,7 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
         cancelled = _ub_cancel.get(user_id, False)
         _ub_cancel.pop(user_id, None)
+        _ub_paused.pop(user_id, None)
         db.finish_user_broadcast(broadcast_id, success, failed)
 
         try:
@@ -914,6 +951,7 @@ async def ub_stop_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await query.answer("🛑 Menghentikan...")
     user_id = query.from_user.id
     _ub_cancel[user_id] = True
+    _ub_paused.pop(user_id, None)
     try:
         await query.edit_message_text(
             "╭─ 🛑 BROADCAST DIHENTIKAN\n│\n│ Proses akan berhenti segera.\n╰─",
@@ -923,6 +961,20 @@ async def ub_stop_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
     except Exception:
         pass
+
+
+async def ub_pause_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer("⏸️ Broadcast dijeda.")
+    user_id = query.from_user.id
+    _ub_paused[user_id] = True
+
+
+async def ub_resume_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer("▶️ Broadcast dilanjutkan.")
+    user_id = query.from_user.id
+    _ub_paused[user_id] = False
 
 
 # ── Pengaturan ────────────────────────────────────────────────────────────────
