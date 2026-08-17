@@ -314,13 +314,25 @@ async def unban_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
 
+async def _cancel_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    """Handler /cancel untuk semua conversation admin."""
+    context.user_data.clear()
+    await update.message.reply_text(
+        "╭─ ❌ Dibatalkan.\n╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⬅️ Dashboard", callback_data="cb_dashboard")]
+        ]),
+    )
+    return ConversationHandler.END
+
+
 def build_ban_conversation():
     return ConversationHandler(
         entry_points=[CallbackQueryHandler(ban_new_callback, pattern="^adm_ban_new$")],
         states={
             WAIT_BAN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_ban_id)],
         },
-        fallbacks=[MessageHandler(filters.COMMAND, lambda u, c: ConversationHandler.END)],
+        fallbacks=[MessageHandler(filters.COMMAND, _cancel_admin)],
         per_chat=True, per_user=True, per_message=False, allow_reentry=True,
     )
 
@@ -400,6 +412,6 @@ def build_announce_conversation():
         states={
             WAIT_ANNOUNCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_announce_text)],
         },
-        fallbacks=[MessageHandler(filters.COMMAND, lambda u, c: ConversationHandler.END)],
+        fallbacks=[MessageHandler(filters.COMMAND, _cancel_admin)],
         per_chat=True, per_user=True, per_message=False, allow_reentry=True,
     )

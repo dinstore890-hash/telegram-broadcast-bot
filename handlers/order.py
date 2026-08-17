@@ -537,7 +537,7 @@ def build_harga_conversation() -> ConversationHandler:
         states={
             WAIT_HARGA: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_harga_input)],
         },
-        fallbacks=[MessageHandler(filters.COMMAND, lambda u, c: ConversationHandler.END)],
+        fallbacks=[MessageHandler(filters.COMMAND, cancel_order)],
         per_chat=True, per_user=True, per_message=False, allow_reentry=True,
     )
 
