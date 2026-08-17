@@ -339,14 +339,13 @@ async def coba_lagi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"🆔 ID Akun : {user.id}\n"
         f"{paket_info}\n"
         f"\n"
-        f"🌟 Gunakan tombol di bawah untuk mulai!\n"
-        f"\n"
-        f"🥳 Risiko & Syarat Menggunakan Userbot."
+        f"🌟 Gunakan tombol di bawah untuk mulai!"
     )
 
     await query.edit_message_text(
         sambutan,
         reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🥳 Risiko & Syarat Menggunakan Userbot", url="https://t.me/GmailxMarket/30")],
             [InlineKeyboardButton("🚀 Mulai Sekarang", callback_data="cb_dashboard")],
         ]),
     )
