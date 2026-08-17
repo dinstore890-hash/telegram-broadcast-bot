@@ -353,7 +353,8 @@ async def show_userlist_reset_callback(update: Update, context: ContextTypes.DEF
     for u in all_users[:30]:
         name = u["username"] or u["first_name"] or "NoName"
         uid  = u["user_id"]
-        text += f"│ • {name} | {uid}\n"
+        joined = u["joined_at"][:16].replace("T", " ") if u["joined_at"] else "—"
+        text += f"│ • {name} | {uid}\n│   ⤷ Masuk: {joined}\n"
         buttons.append([InlineKeyboardButton(
             f"🗑️ Reset {name}",
             callback_data=f"adm_reset_menu_{uid}",
