@@ -388,12 +388,17 @@ async def cancel_settings(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 WAIT_BOTINFO = 60  # conversation state
 
 _BOTINFO_FIELDS = {
-    "bot_title":   ("Judul Bot",   "💎 Gmail Market JASNEB 💎"),
-    "bot_owner":   ("Owner",       "@GmailMarket67"),
-    "bot_grup":    ("Link Grup",   "https://t.me/+sVVIxK_QnhthM2E1"),
-    "bot_channel": ("Link Channel","https://t.me/GmailxMarket"),
-    "bot_tagline": ("Tagline",     "Gunakan menu untuk mulai promosi instant 🤖"),
+    "bot_title":       ("Judul Bot",       "💎 Gmail Market JASNEB 💎"),
+    "bot_owner":       ("Owner",           "@GmailMarket67"),
+    "bot_grup":        ("Link Grup",       "https://t.me/+sVVIxK_QnhthM2E1"),
+    "bot_channel":     ("Link Channel",    "https://t.me/GmailxMarket"),
+    "bot_tagline":     ("Tagline",         "Gunakan menu untuk mulai promosi instant 🤖"),
+    "bot_about":       ("Bio/About",       "🚀 Userbot Jaseb Spesial 🚀\n\nDevelopment by @GmailMarket67\nPromote Auto by @GmailMarket67"),
+    "bot_description": ("Description",     "🤖 Bot Broadcast Otomatis ke Ratusan Grup!\n💎 Gmail Market JASNEB | Fast • Aman • Terpercaya\n👥 t.me/+sVVIxK_QnhthM2E1 | 📢 t.me/GmailxMarket\n👤 Owner: @GmailMarket67"),
 }
+
+# Field yang langsung sync ke profil Telegram
+_TELEGRAM_PROFILE_FIELDS = {"bot_about", "bot_description"}
 
 _BOTINFO_BACK = InlineKeyboardMarkup([
     [InlineKeyboardButton("📝 Info Bot", callback_data="cb_set_botinfo")],
@@ -408,33 +413,45 @@ async def set_botinfo_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if not is_admin(query.from_user.id):
         return
 
-    title   = db.get_setting("bot_title",   "💎 Gmail Market JASNEB 💎")
-    owner   = db.get_setting("bot_owner",   "@GmailMarket67")
-    grup    = db.get_setting("bot_grup",    "https://t.me/+sVVIxK_QnhthM2E1")
-    channel = db.get_setting("bot_channel", "https://t.me/GmailxMarket")
-    tagline = db.get_setting("bot_tagline", "Gunakan menu untuk mulai promosi instant 🤖")
+    title   = db.get_setting("bot_title",       "💎 Gmail Market JASNEB 💎")
+    owner   = db.get_setting("bot_owner",       "@GmailMarket67")
+    grup    = db.get_setting("bot_grup",        "https://t.me/+sVVIxK_QnhthM2E1")
+    channel = db.get_setting("bot_channel",     "https://t.me/GmailxMarket")
+    tagline = db.get_setting("bot_tagline",     "Gunakan menu untuk mulai promosi instant 🤖")
+    about   = db.get_setting("bot_about",       "🚀 Userbot Jaseb Spesial 🚀")
+    desc    = db.get_setting("bot_description", "🤖 Bot Broadcast Otomatis...")
+
+    def _short(s, n=35):
+        return s[:n] + "..." if len(s) > n else s
 
     text = (
         f"╭─ 📝 UBAH INFO BOT\n"
         f"│\n"
-        f"│  ⤷  Judul    : {title}\n"
+        f"│ 📌 Dashboard (tampil di bot):\n"
+        f"│  ⤷  Judul    : {_short(title)}\n"
         f"│  ⤷  Owner    : {owner}\n"
-        f"│  ⤷  Link Grup: {grup}\n"
-        f"│  ⤷  Channel  : {channel}\n"
-        f"│  ⤷  Tagline  : {tagline[:40]}{'...' if len(tagline)>40 else ''}\n"
+        f"│  ⤷  Link Grup: {_short(grup)}\n"
+        f"│  ⤷  Channel  : {_short(channel)}\n"
+        f"│  ⤷  Tagline  : {_short(tagline)}\n"
+        f"│\n"
+        f"│ 🌐 Profil Telegram (otomatis update):\n"
+        f"│  ⤷  Bio/About : {_short(about)}\n"
+        f"│  ⤷  Description: {_short(desc)}\n"
         f"│\n"
         f"╰─ Pilih field yang ingin diubah:"
     )
     await query.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("✏️ Judul Bot",   callback_data="cb_editbotinfo_bot_title")],
-            [InlineKeyboardButton("✏️ Owner",       callback_data="cb_editbotinfo_bot_owner")],
-            [InlineKeyboardButton("✏️ Link Grup",   callback_data="cb_editbotinfo_bot_grup")],
-            [InlineKeyboardButton("✏️ Link Channel",callback_data="cb_editbotinfo_bot_channel")],
-            [InlineKeyboardButton("✏️ Tagline",     callback_data="cb_editbotinfo_bot_tagline")],
+            [InlineKeyboardButton("✏️ Judul Bot",    callback_data="cb_editbotinfo_bot_title")],
+            [InlineKeyboardButton("✏️ Owner",        callback_data="cb_editbotinfo_bot_owner")],
+            [InlineKeyboardButton("✏️ Link Grup",    callback_data="cb_editbotinfo_bot_grup")],
+            [InlineKeyboardButton("✏️ Link Channel", callback_data="cb_editbotinfo_bot_channel")],
+            [InlineKeyboardButton("✏️ Tagline",      callback_data="cb_editbotinfo_bot_tagline")],
+            [InlineKeyboardButton("✏️ Bio/About ⚡",  callback_data="cb_editbotinfo_bot_about")],
+            [InlineKeyboardButton("✏️ Description ⚡",callback_data="cb_editbotinfo_bot_description")],
             [InlineKeyboardButton("🔄 Reset Default", callback_data="cb_resetbotinfo")],
-            [InlineKeyboardButton("⬅️ Kembali",    callback_data="cb_settings")],
+            [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_settings")],
         ]),
     )
 
@@ -468,7 +485,7 @@ async def edit_botinfo_field_callback(update: Update, context: ContextTypes.DEFA
 
 
 async def wait_botinfo_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Terima input teks baru dan simpan ke DB."""
+    """Terima input teks baru dan simpan ke DB. Kalau About/Description, sync otomatis ke Telegram."""
     from telegram.ext import ConversationHandler
     if not is_admin(update.effective_user.id):
         return ConversationHandler.END
@@ -486,11 +503,25 @@ async def wait_botinfo_input(update: Update, context: ContextTypes.DEFAULT_TYPE)
     db.set_setting(field_key, new_value)
     db.add_log("INFO", f"Info bot '{field_key}' diubah: {new_value[:50]}")
 
+    # Auto-sync ke profil Telegram jika field About atau Description
+    sync_note = ""
+    if field_key in _TELEGRAM_PROFILE_FIELDS:
+        try:
+            bot = update.get_bot()
+            if field_key == "bot_about":
+                await bot.set_my_short_description(short_description=new_value)
+            elif field_key == "bot_description":
+                await bot.set_my_description(description=new_value)
+            sync_note = "\n│  ⚡ Profil Telegram otomatis diperbarui!"
+        except Exception as e:
+            sync_note = f"\n│  ⚠️ Gagal sync Telegram: {str(e)[:60]}"
+
     await update.message.reply_text(
         f"╭─ ✅ {label.upper()} DIPERBARUI\n"
         f"│\n"
-        f"│  {new_value}\n"
-        f"╰─ Dashboard user akan langsung pakai nilai baru ini.",
+        f"│  {new_value[:100]}{'...' if len(new_value)>100 else ''}\n"
+        f"{sync_note}\n"
+        f"╰─",
         reply_markup=_BOTINFO_BACK,
     )
     return ConversationHandler.END
@@ -505,10 +536,22 @@ async def reset_botinfo_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     for key, (_, default) in _BOTINFO_FIELDS.items():
         db.set_setting(key, default)
+
+    # Sync About & Description ke Telegram
+    try:
+        bot = update.get_bot()
+        about_default = _BOTINFO_FIELDS["bot_about"][1]
+        desc_default  = _BOTINFO_FIELDS["bot_description"][1]
+        await bot.set_my_short_description(short_description=about_default)
+        await bot.set_my_description(description=desc_default)
+        sync_note = "│  ⚡ Profil Telegram juga direset!\n"
+    except Exception as e:
+        sync_note = f"│  ⚠️ Gagal sync Telegram: {str(e)[:50]}\n"
+
     db.add_log("INFO", "Info bot direset ke default.")
 
     await query.edit_message_text(
-        "╭─ 🔄 INFO BOT DIRESET\n│\n│ Semua nilai dikembalikan ke default.\n╰─",
+        f"╭─ 🔄 INFO BOT DIRESET\n│\n│ Semua nilai dikembalikan ke default.\n{sync_note}╰─",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("📝 Lihat Info Bot", callback_data="cb_set_botinfo")],
             [InlineKeyboardButton("⬅️ Kembali",        callback_data="cb_settings")],
