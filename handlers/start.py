@@ -78,6 +78,8 @@ async def _build_user_dashboard(user_id: int, first_name: str = "") -> str:
 
     lic = db.get_license(user_id)
     active = lic and db.is_license_active(user_id)
+    ub_stats = db.get_userbot_stats_user(user_id)
+
     if active:
         expired = lic["expired_at"][:10]
         lisensi_info = (
@@ -95,11 +97,20 @@ async def _build_user_dashboard(user_id: int, first_name: str = "") -> str:
             f"│  ⤷  Order sekarang untuk mulai!\n"
         )
 
+    ub_stats_info = (
+        f"│\n"
+        f"│ 📊 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐁𝐑𝐎𝐀𝐃𝐂𝐀𝐒𝐓𝐊𝐔\n"
+        f"│  ⤷  Total Terkirim : {ub_stats['total_success']}\n"
+        f"│  ⤷  Total Gagal    : {ub_stats['total_failed']}\n"
+        f"│  ⤷  Total Sesi     : {ub_stats['total_broadcasts']}\n"
+    )
+
     return (
         f"╭─ {bot_title}\n"
         f"│\n"
         f"│ Halo, {first_name + '! ' if first_name else ''}{greeting} 👋\n"
         f"{lisensi_info}"
+        f"{ub_stats_info}"
         f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
         f"│  𝐎𝐰𝐧𝐞𝐫 {bot_owner}\n"
         f"│  👥 Grup    : {bot_grup}\n"
@@ -166,6 +177,7 @@ async def _build_dashboard(connected: bool) -> str:
 async def _build_admin_dashboard(connected: bool) -> str:
     stats = db.get_stats()
     user_stats = db.get_user_stats()
+    ub_stats = db.get_userbot_stats_all()
     from services.broadcast_service import get_state
     state = get_state()
 
@@ -193,12 +205,16 @@ async def _build_admin_dashboard(connected: bool) -> str:
         f"│\n"
         f"│ 👑 ADMIN DASHBOARD\n"
         f"│\n"
-        f"│ ⭐ 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐁𝐑𝐎𝐀𝐃𝐂𝐀𝐒𝐓\n"
+        f"│ ⭐ 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐁𝐑𝐎𝐀𝐃𝐂𝐀𝐒𝐓 𝐀𝐃𝐌𝐈𝐍\n"
         f"│  ⤷  Total Target   : {stats['total_targets']}\n"
         f"│  ⤷  Target Aktif   : {stats['active_targets']}\n"
         f"│  ⤷  Total Terkirim : {stats['total_success']}\n"
         f"│  ⤷  Total Gagal    : {stats['total_failed']}\n"
         f"{broadcast_info}"
+        f"│ ⭐ 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐁𝐑𝐎𝐀𝐃𝐂𝐀𝐒𝐓 𝐔𝐒𝐄𝐑𝐁𝐎𝐓\n"
+        f"│  ⤷  Total Terkirim : {ub_stats['total_success']}\n"
+        f"│  ⤷  Total Gagal    : {ub_stats['total_failed']}\n"
+        f"│  ⤷  Total Sesi     : {ub_stats['total_broadcasts']}\n"
         f"│ ⭐ 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐔𝐒𝐄𝐑\n"
         f"│  ⤷  Pengguna Baru   : {user_stats['new_users']}\n"
         f"│  ⤷  Total Pengguna  : {user_stats['total_users']}\n"

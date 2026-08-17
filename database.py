@@ -527,6 +527,24 @@ def get_stats() -> dict:
     }
 
 
+def get_userbot_stats_all() -> dict:
+    """Total statistik broadcast semua userbot (untuk admin dashboard)."""
+    with get_connection() as conn:
+        success = conn.execute("SELECT COALESCE(SUM(success),0) FROM user_broadcasts WHERE status='completed'").fetchone()[0]
+        failed  = conn.execute("SELECT COALESCE(SUM(failed),0)  FROM user_broadcasts WHERE status='completed'").fetchone()[0]
+        total   = conn.execute("SELECT COUNT(*) FROM user_broadcasts WHERE status='completed'").fetchone()[0]
+    return {"total_success": success, "total_failed": failed, "total_broadcasts": total}
+
+
+def get_userbot_stats_user(user_id: int) -> dict:
+    """Statistik broadcast userbot milik 1 user."""
+    with get_connection() as conn:
+        success = conn.execute("SELECT COALESCE(SUM(success),0) FROM user_broadcasts WHERE user_id=? AND status='completed'", (user_id,)).fetchone()[0]
+        failed  = conn.execute("SELECT COALESCE(SUM(failed),0)  FROM user_broadcasts WHERE user_id=? AND status='completed'", (user_id,)).fetchone()[0]
+        total   = conn.execute("SELECT COUNT(*) FROM user_broadcasts WHERE user_id=? AND status='completed'", (user_id,)).fetchone()[0]
+    return {"total_success": success, "total_failed": failed, "total_broadcasts": total}
+
+
 # ── User Accounts (per-user Telethon session) ─────────────────────────────────
 
 def add_user_account(user_id: int, phone: str, string_session: str, name: str = "", username: str = "") -> bool:
