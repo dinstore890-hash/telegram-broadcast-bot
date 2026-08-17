@@ -1,9 +1,12 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+import logging
 from telegram.ext import ContextTypes
 
 import database as db
 from config import is_admin, TEST_MODE
 from services import telegram_client
+
+logger = logging.getLogger(__name__)
 
 
 def _main_keyboard(is_broadcasting: bool = False) -> InlineKeyboardMarkup:
@@ -230,8 +233,10 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                     user_id=user.id,
                 )
                 is_member = member.status not in ("left", "kicked")
-            except Exception:
-                is_member = False
+            except Exception as e:
+                # Kalau bot tidak bisa cek — loloskan
+                logger.warning(f"Tidak bisa cek member channel {required_channel}: {e}")
+                is_member = True
 
             if not is_member:
                 channel_url = db.get_setting("required_channel_url", f"https://t.me/{required_channel.lstrip('@')}")
@@ -282,8 +287,10 @@ async def coba_lagi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 user_id=user.id,
             )
             is_member = member.status not in ("left", "kicked")
-        except Exception:
-            is_member = False
+        except Exception as e:
+            # Kalau bot tidak bisa cek (bukan admin channel, dll) — loloskan
+            logger.warning(f"Tidak bisa cek member channel {required_channel}: {e}")
+            is_member = True
 
         if not is_member:
             channel_url = db.get_setting("required_channel_url", f"https://t.me/{required_channel.lstrip('@')}")
