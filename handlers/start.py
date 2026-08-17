@@ -220,6 +220,42 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         return
 
+    # Cek wajib join channel (skip untuk admin)
+    if not is_admin(user.id):
+        required_channel = db.get_setting("required_channel", "")
+        if required_channel:
+            try:
+                member = await context.bot.get_chat_member(
+                    chat_id=required_channel,
+                    user_id=user.id,
+                )
+                is_member = member.status not in ("left", "kicked")
+            except Exception:
+                is_member = False
+
+            if not is_member:
+                channel_url = db.get_setting("required_channel_url", f"https://t.me/{required_channel.lstrip('@')}")
+                channel_name = db.get_setting("required_channel_name", required_channel)
+                await update.message.reply_text(
+                    f"╭─ 🔴 AKSES DITOLAK\n"
+                    f"│\n"
+                    f"│ 🔴 Status : Belum Bergabung\n"
+                    f"│\n"
+                    f"│ ℹ️ Kamu harus bergabung dengan\n"
+                    f"│ channel berikut untuk mengakses bot:\n"
+                    f"│\n"
+                    f"│ 📢 {channel_name}\n"
+                    f"│\n"
+                    f"│ Setelah join, tekan tombol\n"
+                    f"│ 'Coba Lagi' di bawah.\n"
+                    f"╰─",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton(f"📢 Join {channel_name}", url=channel_url)],
+                        [InlineKeyboardButton("✅ Coba Lagi", callback_data="cb_coba_lagi")],
+                    ]),
+                )
+                return
+
     connected = await telegram_client.is_connected()
     from services.broadcast_service import is_running
 
@@ -229,6 +265,47 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     else:
         text, active = await _build_user_dashboard(user.id, user.first_name or "")
         await update.message.reply_text(text, reply_markup=_user_keyboard(active))
+
+
+async def coba_lagi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler tombol Coba Lagi setelah user join channel."""
+    query = update.callback_query
+    await query.answer()
+    user = query.from_user
+
+    # Cek lagi apakah sudah join
+    required_channel = db.get_setting("required_channel", "")
+    if required_channel:
+        try:
+            member = await context.bot.get_chat_member(
+                chat_id=required_channel,
+                user_id=user.id,
+            )
+            is_member = member.status not in ("left", "kicked")
+        except Exception:
+            is_member = False
+
+        if not is_member:
+            channel_url = db.get_setting("required_channel_url", f"https://t.me/{required_channel.lstrip('@')}")
+            channel_name = db.get_setting("required_channel_name", required_channel)
+            await query.edit_message_text(
+                f"╭─ 🔴 AKSES DITOLAK\n"
+                f"│\n"
+                f"│ 🔴 Status : Belum Bergabung\n"
+                f"│\n"
+                f"│ ℹ️ Kamu belum join channel.\n"
+                f"│ Join dulu lalu tekan Coba Lagi.\n"
+                f"╰─",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton(f"📢 Join {channel_name}", url=channel_url)],
+                    [InlineKeyboardButton("✅ Coba Lagi", callback_data="cb_coba_lagi")],
+                ]),
+            )
+            return
+
+    # Sudah join — tampilkan dashboard
+    text, active = await _build_user_dashboard(user.id, user.first_name or "")
+    await query.edit_message_text(text, reply_markup=_user_keyboard(active))
 
 
 async def dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -305,6 +382,7 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     bot_grup        = db.get_setting("bot_grup",    "https://t.me/+sVVIxK_QnhthM2E1")
     bot_channel     = db.get_setting("bot_channel", "https://t.me/GmailxMarket")
 
+    req_channel = db.get_setting("required_channel", "Belum diset")
     text = (
         f"╭─ ⚙️ PENGATURAN\n"
         f"│\n"
@@ -318,6 +396,8 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         f"│  ⤷  Link Grup: {bot_grup[:30]}...\n"
         f"│  ⤷  Channel  : {bot_channel[:30]}...\n"
         f"│\n"
+        f"│ 📢 Channel Wajib Join: {req_channel}\n"
+        f"│\n"
         f"╰─ Pilih yang ingin diubah:"
     )
     await query.edit_message_text(
@@ -327,7 +407,8 @@ async def settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
                 InlineKeyboardButton("⏱️ Broadcast Delay", callback_data="cb_set_broadcast_delay"),
                 InlineKeyboardButton("⏱️ Leave Delay",     callback_data="cb_leavedelay"),
             ],
-            [InlineKeyboardButton("📝 Ubah Info Bot", callback_data="cb_set_botinfo")],
+            [InlineKeyboardButton("📝 Ubah Info Bot",        callback_data="cb_set_botinfo")],
+            [InlineKeyboardButton("📢 Set Channel Wajib Join", callback_data="cb_set_channel")],
             [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
         ]),
     )
@@ -599,6 +680,93 @@ def build_botinfo_conversation():
         per_user=True,
         per_message=False,
         allow_reentry=True,
+    )
+
+
+
+# ── Set Required Channel ──────────────────────────────────────────────────────
+
+WAIT_SET_CHANNEL = 55
+
+async def set_channel_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from telegram.ext import ConversationHandler
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    current = db.get_setting("required_channel", "Belum diset")
+    await query.edit_message_text(
+        f"╭─ 📢 SET CHANNEL WAJIB JOIN\n"
+        f"│\n"
+        f"│  Channel saat ini: {current}\n"
+        f"│\n"
+        f"│ Kirim username channel.\n"
+        f"│ Contoh: @GmailxMarket\n"
+        f"│\n"
+        f"│ Kirim '-' untuk nonaktifkan.\n"
+        f"╰─ /cancel untuk batal."
+    )
+    return WAIT_SET_CHANNEL
+
+
+async def wait_set_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    from telegram.ext import ConversationHandler
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    text = update.message.text.strip()
+
+    if text == "-":
+        db.set_setting("required_channel", "")
+        db.set_setting("required_channel_name", "")
+        db.set_setting("required_channel_url", "")
+        await update.message.reply_text(
+            "╭─ ✅ CHANNEL WAJIB DINONAKTIFKAN\n│\n│ User tidak perlu join channel.\n╰─",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Pengaturan", callback_data="cb_settings")]]),
+        )
+        return ConversationHandler.END
+
+    # Format: @username
+    if not text.startswith("@"):
+        text = "@" + text
+
+    channel_url = f"https://t.me/{text.lstrip('@')}"
+    # Coba ambil nama channel
+    try:
+        chat = await update.get_bot().get_chat(text)
+        channel_name = chat.title or text
+    except Exception:
+        channel_name = text
+
+    db.set_setting("required_channel", text)
+    db.set_setting("required_channel_name", channel_name)
+    db.set_setting("required_channel_url", channel_url)
+    db.add_log("INFO", f"Required channel diset ke {text}")
+
+    await update.message.reply_text(
+        f"╭─ ✅ CHANNEL WAJIB DISET\n"
+        f"│\n"
+        f"│  Channel : {channel_name}\n"
+        f"│  Username: {text}\n"
+        f"│\n"
+        f"│ User harus join channel ini\n"
+        f"│ sebelum bisa pakai bot.\n"
+        f"╰─",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⚙️ Pengaturan", callback_data="cb_settings")]]),
+    )
+    return ConversationHandler.END
+
+
+def build_channel_conversation():
+    from telegram.ext import ConversationHandler, CallbackQueryHandler, MessageHandler, filters
+    return ConversationHandler(
+        entry_points=[CallbackQueryHandler(set_channel_callback, pattern="^cb_set_channel$")],
+        states={
+            WAIT_SET_CHANNEL: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_set_channel)],
+        },
+        fallbacks=[MessageHandler(filters.COMMAND, cancel_settings)],
+        per_chat=True, per_user=True, per_message=False, allow_reentry=True,
     )
 
 

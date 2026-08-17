@@ -13,6 +13,7 @@ from handlers.start import (
     build_settings_conversation,
     set_botinfo_menu, edit_botinfo_field_callback,
     reset_botinfo_callback, build_botinfo_conversation,
+    coba_lagi_callback, set_channel_callback, build_channel_conversation,
 )
 from handlers.user_broadcast import build_user_broadcast_conversation
 from handlers.userbot import (
@@ -116,6 +117,7 @@ def build_app():
     app.add_handler(build_login_conversation())
     app.add_handler(build_settings_conversation())
     app.add_handler(build_botinfo_conversation())
+    app.add_handler(build_channel_conversation())
     app.add_handler(build_leave_conversation())
     app.add_handler(build_addtarget_conversation())
     app.add_handler(build_broadcast_conversation())
@@ -127,6 +129,7 @@ def build_app():
     app.add_handler(build_announce_conversation())
 
     app.add_handler(CallbackQueryHandler(dashboard_callback,      pattern="^cb_dashboard$"))
+    app.add_handler(CallbackQueryHandler(coba_lagi_callback,      pattern="^cb_coba_lagi$"))
     app.add_handler(CallbackQueryHandler(account_callback,        pattern="^cb_account$"))
     app.add_handler(CallbackQueryHandler(reconnect_callback,      pattern="^cb_reconnect$"))
     app.add_handler(CallbackQueryHandler(logout_callback,         pattern="^cb_logout$"))
