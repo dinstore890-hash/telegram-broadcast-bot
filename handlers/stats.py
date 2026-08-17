@@ -433,6 +433,11 @@ async def reset_user_data_callback(update: Update, context: ContextTypes.DEFAULT
     return ConversationHandler.END
 
 
+async def _cancel_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await update.message.reply_text("╭─ ❌ Dibatalkan.\n╰─")
+    return ConversationHandler.END
+
+
 def build_ban_conversation():
     return ConversationHandler(
         entry_points=[CallbackQueryHandler(ban_new_callback, pattern="^adm_ban_new$")],
