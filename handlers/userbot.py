@@ -120,7 +120,10 @@ async def ub_home(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
             InlineKeyboardButton("📢 Broadcast", callback_data="ub_broadcast_menu"),
             InlineKeyboardButton("⚙️ Pengaturan", callback_data="ub_settings"),
         ],
-        [InlineKeyboardButton("⚠️ Bantuan", callback_data="ub_bantuan")],
+        [
+            InlineKeyboardButton("📋 History", callback_data="ub_history"),
+            InlineKeyboardButton("⚠️ Bantuan", callback_data="ub_bantuan"),
+        ],
         [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
     ])
 
@@ -1086,6 +1089,42 @@ async def ub_resume_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 # ── Pengaturan ────────────────────────────────────────────────────────────────
+
+async def ub_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    history = db.get_user_broadcast_history(user_id, limit=10)
+
+    if not history:
+        await query.edit_message_text(
+            "╭─ 📋 HISTORY BROADCAST\n│\n│ Belum ada riwayat broadcast.\n╰─",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Kembali", callback_data="ub_home")]]),
+        )
+        return
+
+    text = "╭─ 📋 HISTORY BROADCAST\n│\n"
+    for i, h in enumerate(history, 1):
+        tanggal = h["created_at"][:16].replace("T", " ") if h["created_at"] else "—"
+        total   = h["total"] or 0
+        success = h["success"] or 0
+        failed  = h["failed"] or 0
+        status  = "✅" if h["status"] == "completed" else "⚡"
+        text += (
+            f"│ {i}. {status} {tanggal}\n"
+            f"│  ⤷  Total   : {total} grup\n"
+            f"│  ⤷  Berhasil: {success}\n"
+            f"│  ⤷  Gagal   : {failed}\n"
+            f"│\n"
+        )
+    text += "╰─"
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Kembali", callback_data="ub_home")]]),
+    )
+
 
 async def ub_bantuan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query

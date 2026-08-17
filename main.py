@@ -28,7 +28,7 @@ from handlers.userbot import (
     ub_cara_pasang, ub_fitur_unggulan,
     ub_trial, ub_setuju_trial, ub_delete_group,
     ub_pause_broadcast, ub_resume_broadcast,
-    ub_loop_broadcast,
+    ub_loop_broadcast, ub_history,
     build_userbot_conversation,
 )
 from handlers.account import (
@@ -266,6 +266,7 @@ def build_app():
     app.add_handler(CallbackQueryHandler(ub_pause_broadcast,  pattern="^ub_pause_broadcast$"))
     app.add_handler(CallbackQueryHandler(ub_resume_broadcast, pattern="^ub_resume_broadcast$"))
     app.add_handler(CallbackQueryHandler(ub_loop_broadcast,   pattern="^ub_loop_bc_\\d+$"))
+    app.add_handler(CallbackQueryHandler(ub_history,          pattern="^ub_history$"))
 
     return app
 
