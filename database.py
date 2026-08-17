@@ -757,3 +757,39 @@ def get_paket_by_key(key: str) -> dict | None:
     nama, max_grup, durasi, harga_default = _DEFAULT_PAKETS[key]
     harga = int(get_setting(f"paket_harga_{key}", str(harga_default)))
     return {"key": key, "nama": nama, "max_grup": max_grup, "durasi_hari": durasi, "harga": harga}
+
+
+# ── Trial ─────────────────────────────────────────────────────────────────────
+
+def has_used_trial(user_id: int) -> bool:
+    """Cek apakah user sudah pernah trial."""
+    with get_connection() as conn:
+        row = conn.execute("SELECT is_banned FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        if not row:
+            return False
+        val = get_setting(f"trial_used_{user_id}", "0")
+        return val == "1"
+
+
+def set_trial_used(user_id: int) -> None:
+    """Tandai user sudah pakai trial."""
+    set_setting(f"trial_used_{user_id}", "1")
+
+
+def activate_trial(user_id: int) -> None:
+    """Aktifkan lisensi trial 1 jam."""
+    from datetime import timedelta
+    now = datetime.now()
+    expired = (now + timedelta(hours=1)).isoformat()
+    with get_connection() as conn:
+        conn.execute("""
+            INSERT INTO licenses (user_id, paket, max_grup, durasi_hari, expired_at, activated_at)
+            VALUES (?,?,?,?,?,?)
+            ON CONFLICT(user_id) DO UPDATE SET
+                paket=excluded.paket,
+                max_grup=excluded.max_grup,
+                durasi_hari=excluded.durasi_hari,
+                expired_at=excluded.expired_at,
+                activated_at=excluded.activated_at
+        """, (user_id, "TRIAL", 10, 0, expired, now.isoformat()))
+    set_trial_used(user_id)

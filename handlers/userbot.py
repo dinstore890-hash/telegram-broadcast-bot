@@ -1088,6 +1088,116 @@ async def ub_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 # ── ConversationHandler ───────────────────────────────────────────────────────
 
+async def ub_trial(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Tampilkan info trial gratis."""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    # Cek sudah pernah trial
+    if db.has_used_trial(user_id):
+        lic = db.get_license(user_id)
+        active = lic and db.is_license_active(user_id)
+        if active and lic["paket"] == "TRIAL":
+            # Trial masih aktif
+            expired = lic["expired_at"][11:16]
+            await query.edit_message_text(
+                f"╭─ 🎁 TRIAL AKTIF\n"
+                f"│\n"
+                f"│ Trial kamu masih aktif!\n"
+                f"│ Berakhir pukul: {expired}\n"
+                f"│\n"
+                f"╰─ Gunakan fitur bot sekarang!",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🚀 Mulai Broadcast", callback_data="cb_user_broadcast")],
+                    [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
+                ]),
+            )
+        else:
+            # Trial sudah habis
+            await query.edit_message_text(
+                f"╭─ ⏰ TRIAL BERAKHIR\n"
+                f"│\n"
+                f"│ Trial gratis kamu sudah berakhir.\n"
+                f"│ Setiap akun hanya bisa trial 1 kali.\n"
+                f"│\n"
+                f"│ Order sekarang untuk lanjut\n"
+                f"│ menikmati fitur lengkap!\n"
+                f"╰─",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🛒 Order Sekarang", callback_data="cb_order")],
+                    [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
+                ]),
+            )
+        return
+
+    # Belum pernah trial — tampilkan kebijakan
+    bot_owner = db.get_setting("bot_owner", "@GmailMarket67")
+    await query.edit_message_text(
+        f"🎁 COBA GRATIS — TRIAL 1 JAM\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"\n"
+        f"🔔 Kebijakan Trial Userbot\n"
+        f"\n"
+        f"💎 Akses Trial Selama 1 Jam.\n"
+        f"🥳 Mendapatkan Plan Basic (maks 10 grup).\n"
+        f"💎 Setelah 1 Jam, akses akan berakhir.\n"
+        f"⚠️ Setiap akun hanya bisa trial 1 kali.\n"
+        f"\n"
+        f"🥳 Risiko & Syarat:\n"
+        f"• Gunakan dengan bijak\n"
+        f"• Jangan spam berlebihan\n"
+        f"• Admin berhak membatalkan trial\n"
+        f"\n"
+        f"✍️ Tekan ✅ Setuju Trial untuk memulai\n"
+        f"\n"
+        f"🚨 Promo paket lengkap — hubungi {bot_owner}",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Setuju Trial", callback_data="ub_setuju_trial")],
+            [InlineKeyboardButton("❌ Batalkan",     callback_data="cb_dashboard")],
+        ]),
+    )
+
+
+async def ub_setuju_trial(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Aktifkan trial setelah user setuju."""
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    # Double check belum trial
+    if db.has_used_trial(user_id):
+        await query.edit_message_text(
+            "╭─ ⚠️ Kamu sudah pernah trial.\n╰─",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🛒 Order Sekarang", callback_data="cb_order")],
+                [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
+            ]),
+        )
+        return
+
+    db.activate_trial(user_id)
+    db.add_log("INFO", f"User {user_id} aktivasi trial 1 jam.")
+
+    await query.edit_message_text(
+        f"╭─ 🎉 TRIAL AKTIF!\n"
+        f"│\n"
+        f"│ ✅ Trial 1 jam berhasil diaktifkan!\n"
+        f"│\n"
+        f"│ 📦 Paket  : TRIAL\n"
+        f"│ 👥 Max Grup: 10 grup\n"
+        f"│ ⏱️ Durasi  : 1 Jam\n"
+        f"│\n"
+        f"│ Mulai broadcast sekarang!\n"
+        f"│ Setelah 1 jam akses berakhir.\n"
+        f"╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 Mulai Broadcast", callback_data="cb_user_broadcast")],
+            [InlineKeyboardButton("🏠 Dashboard",       callback_data="cb_dashboard")],
+        ]),
+    )
+
+
 def build_userbot_conversation() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[

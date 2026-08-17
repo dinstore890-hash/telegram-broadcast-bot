@@ -50,6 +50,7 @@ def _user_keyboard(has_license: bool = False) -> InlineKeyboardMarkup:
         ])
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🛒 Order Sekarang", callback_data="cb_order")],
+        [InlineKeyboardButton("🎁 Coba Gratis",    callback_data="ub_trial")],
         [InlineKeyboardButton("📋 Cek Lisensi",   callback_data="cb_lisensi")],
         [InlineKeyboardButton("⚠️ Bantuan",        callback_data="ub_bantuan")],
     ])
