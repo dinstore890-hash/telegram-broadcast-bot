@@ -858,7 +858,7 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 break
 
             # Cek pause — tunggu sampai di-resume
-            while _ub_paused.get(user_id):
+            if _ub_paused.get(user_id):
                 try:
                     await msg.edit_text(
                         f"╭─ ⏸️ BROADCAST DIJEDA\n"
@@ -870,9 +870,10 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     )
                 except Exception:
                     pass
-                await asyncio.sleep(1)
-                if _ub_cancel.get(user_id):
-                    break
+                while _ub_paused.get(user_id):
+                    await asyncio.sleep(0.5)
+                    if _ub_cancel.get(user_id):
+                        break
 
             if _ub_cancel.get(user_id):
                 break
@@ -975,6 +976,13 @@ async def ub_resume_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer("▶️ Broadcast dilanjutkan.")
     user_id = query.from_user.id
     _ub_paused[user_id] = False
+    try:
+        await query.edit_message_text(
+            "╭─ 📢 BROADCAST DILANJUTKAN\n│\n│ Sedang berjalan...\n╰─",
+            reply_markup=_stop_pause_btn(paused=False),
+        )
+    except Exception:
+        pass
 
 
 # ── Pengaturan ────────────────────────────────────────────────────────────────
