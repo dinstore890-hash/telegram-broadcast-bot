@@ -362,6 +362,33 @@ async def admin_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     except Exception as e:
         logger.error(f"Gagal notif user {order['user_id']}: {e}")
 
+    # Kirim invoice ke grup JASNEB AND GMAIL MARKET (topik Invoice)
+    INVOICE_GROUP_ID = -1003936397248
+    INVOICE_TOPIC_ID = 274
+    buyer = f"@{order['username']}" if order['username'] else str(order['user_id'])
+    harga_fmt = f"Rp {order['harga']:,}".replace(",", ".")
+    try:
+        await context.bot.send_message(
+            chat_id=INVOICE_GROUP_ID,
+            message_thread_id=INVOICE_TOPIC_ID,
+            text=(
+                f"🧾 *INVOICE TRANSAKSI*\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"⭐ Order ID   : `#{order_id}`\n"
+                f"⭐ Pembeli    : {buyer}\n"
+                f"⭐ Paket      : {order['paket']}\n"
+                f"⭐ Durasi     : {order['durasi_hari']} Hari\n"
+                f"⭐ Max Grup   : {order['max_grup']}\n"
+                f"⭐ Total      : {harga_fmt}\n"
+                f"⭐ Expired    : {expired}\n"
+                f"━━━━━━━━━━━━━━━━━━━━\n"
+                f"✅ Pembayaran Dikonfirmasi"
+            ),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.error(f"Gagal kirim invoice ke grup: {e}")
+
 
 async def admin_reject_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
