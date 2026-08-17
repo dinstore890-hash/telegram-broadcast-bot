@@ -50,6 +50,7 @@ from handlers.broadcast import (
 from handlers.stats import stats_callback, manage_licenses_callback, delete_license_callback, \
     manage_users_callback, unban_callback, announce_callback, \
     show_userlist_ban_callback, show_userlist_unban_callback, ban_direct_callback, \
+    show_userlist_reset_callback, reset_user_menu_callback, reset_user_data_callback, \
     build_ban_conversation, build_announce_conversation
 from config import is_admin
 import database as db
@@ -228,6 +229,9 @@ def build_app():
     app.add_handler(CallbackQueryHandler(show_userlist_unban_callback,pattern="^adm_show_userlist_unban$"))
     app.add_handler(CallbackQueryHandler(ban_direct_callback,         pattern="^adm_ban_\\d+$"))
     app.add_handler(CallbackQueryHandler(unban_callback,              pattern="^adm_unban_"))
+    app.add_handler(CallbackQueryHandler(show_userlist_reset_callback, pattern="^adm_show_userlist_reset$"))
+    app.add_handler(CallbackQueryHandler(reset_user_menu_callback,    pattern="^adm_reset_menu_\\d+$"))
+    app.add_handler(CallbackQueryHandler(reset_user_data_callback,    pattern="^adm_reset_(grup|pesan|akun|all)_\\d+$"))
     app.add_handler(CallbackQueryHandler(announce_callback,           pattern="^cb_announce$"))
     app.add_handler(CallbackQueryHandler(manage_harga_callback,       pattern="^cb_manage_harga$"))
     app.add_handler(CallbackQueryHandler(logs_callback,           pattern="^cb_logs$"))

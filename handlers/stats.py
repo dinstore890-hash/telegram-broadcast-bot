@@ -167,9 +167,10 @@ async def manage_users_callback(update: Update, context: ContextTypes.DEFAULT_TY
     text += "╰─ Pilih aksi:"
 
     buttons = [
-        [InlineKeyboardButton("🚫 Ban User",    callback_data="adm_show_userlist_ban")],
-        [InlineKeyboardButton("✅ Unban User",  callback_data="adm_show_userlist_unban")],
-        [InlineKeyboardButton("⬅️ Kembali",     callback_data="cb_dashboard")],
+        [InlineKeyboardButton("🚫 Ban User",       callback_data="adm_show_userlist_ban")],
+        [InlineKeyboardButton("✅ Unban User",     callback_data="adm_show_userlist_unban")],
+        [InlineKeyboardButton("🗑️ Reset Data User", callback_data="adm_show_userlist_reset")],
+        [InlineKeyboardButton("⬅️ Kembali",        callback_data="cb_dashboard")],
     ]
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
@@ -323,7 +324,104 @@ async def unban_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
 
-async def _cancel_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    await query.edit_message_text(
+        f"╭─ ✅ USER DI-UNBAN\n│\n│ User ID: {user_id}\n╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("👥 Kelola User", callback_data="cb_manage_users")],
+            [InlineKeyboardButton("⬅️ Kembali",     callback_data="cb_dashboard")],
+        ]),
+    )
+
+
+async def show_userlist_reset_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Tampilkan daftar user untuk pilih yang mau direset datanya."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    all_users = db.get_all_users()
+    if not all_users:
+        await query.edit_message_text(
+            "╭─ 👥 RESET DATA\n│\n│ Tidak ada user.\n╰─",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Kembali", callback_data="cb_manage_users")]]),
+        )
+        return
+
+    text = "╭─ 🗑️ PILIH USER UNTUK RESET DATA\n│\n"
+    buttons = []
+    for u in all_users[:30]:
+        name = u["username"] or u["first_name"] or "NoName"
+        uid  = u["user_id"]
+        text += f"│ • {name} | {uid}\n"
+        buttons.append([InlineKeyboardButton(
+            f"🗑️ Reset {name}",
+            callback_data=f"adm_reset_menu_{uid}",
+        )])
+    text += "╰─"
+    buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_manage_users")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+
+async def reset_user_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Tampilkan pilihan reset untuk user tertentu."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    user_id = int(query.data.replace("adm_reset_menu_", ""))
+    u = next((x for x in db.get_all_users() if x["user_id"] == user_id), None)
+    name = u["username"] or u["first_name"] if u else str(user_id)
+
+    await query.edit_message_text(
+        f"╭─ 🗑️ RESET DATA USER\n│\n│ User: {name} ({user_id})\n│\n│ Pilih data yang mau direset:\n╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("👥 Reset Grup",   callback_data=f"adm_reset_grup_{user_id}")],
+            [InlineKeyboardButton("📝 Reset Pesan",  callback_data=f"adm_reset_pesan_{user_id}")],
+            [InlineKeyboardButton("📱 Reset Akun",   callback_data=f"adm_reset_akun_{user_id}")],
+            [InlineKeyboardButton("💣 Reset Semua",  callback_data=f"adm_reset_all_{user_id}")],
+            [InlineKeyboardButton("⬅️ Kembali",      callback_data="adm_show_userlist_reset")],
+        ]),
+    )
+
+
+async def reset_user_data_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Eksekusi reset data user."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    data = query.data  # adm_reset_{tipe}_{user_id}
+    parts = data.split("_")
+    tipe    = parts[2]  # grup / pesan / akun / all
+    user_id = int(parts[3])
+
+    if tipe == "grup":
+        count = db.clear_user_targets(user_id)
+        msg = f"✅ {count} grup berhasil dihapus."
+    elif tipe == "pesan":
+        count = db.clear_user_messages(user_id)
+        msg = f"✅ {count} pesan berhasil dihapus."
+    elif tipe == "akun":
+        db.delete_user_account(user_id)
+        msg = "✅ Akun userbot berhasil direset."
+    elif tipe == "all":
+        g = db.clear_user_targets(user_id)
+        p = db.clear_user_messages(user_id)
+        db.delete_user_account(user_id)
+        msg = f"✅ Semua data direset. ({g} grup, {p} pesan, akun)"
+    else:
+        msg = "❌ Tipe reset tidak dikenal."
+
+    db.add_log("INFO", f"Admin reset data user {user_id}: {tipe}")
+    await query.edit_message_text(
+        f"╭─ 🗑️ RESET SELESAI\n│\n│ {msg}\n╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("👥 Kelola User", callback_data="cb_manage_users")],
+        ]),
+    )
     """Handler /cancel untuk semua conversation admin."""
     context.user_data.clear()
     await update.message.reply_text(
