@@ -181,9 +181,9 @@ async def ub_login_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         "╰─ Atau ketik /cancel untuk batal."
     )
     await query.message.reply_text(
-        "👇 Tap tombol untuk kirim nomor:",
+        "📞 Kontak Saya",
         reply_markup=ReplyKeyboardMarkup(
-            [[KeyboardButton("📁 Kirim Nomor 📁", request_contact=True)]],
+            [[KeyboardButton("📞 Kontak Saya", request_contact=True)]],
             one_time_keyboard=True,
             resize_keyboard=True,
         ),

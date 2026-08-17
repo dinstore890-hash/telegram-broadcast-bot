@@ -57,8 +57,9 @@ def _user_keyboard(has_license: bool = False) -> InlineKeyboardMarkup:
 
 
 async def _build_user_dashboard(user_id: int, first_name: str = "") -> str:
-    from datetime import datetime
-    hour = datetime.now().hour
+    from datetime import datetime, timezone, timedelta
+    WIB = timezone(timedelta(hours=7))
+    hour = datetime.now(WIB).hour
     if hour < 11:
         greeting = "Selamat Pagi"
     elif hour < 15:
@@ -113,8 +114,9 @@ async def _build_dashboard(connected: bool) -> str:
     from services.broadcast_service import get_state
     state = get_state()
 
-    from datetime import datetime
-    hour = datetime.now().hour
+    from datetime import datetime, timezone, timedelta
+    WIB = timezone(timedelta(hours=7))
+    hour = datetime.now(WIB).hour
     if hour < 11:
         greeting = "Selamat Pagi"
     elif hour < 15:
