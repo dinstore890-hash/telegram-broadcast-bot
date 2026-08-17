@@ -1,5 +1,11 @@
+import asyncio
+from datetime import datetime
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import (
+    ContextTypes, ConversationHandler,
+    CallbackQueryHandler, MessageHandler, filters,
+)
 
 import database as db
 from config import is_admin
@@ -9,6 +15,12 @@ _BACK_BTN = InlineKeyboardMarkup([
     [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
 ])
 
+# Conversation states
+WAIT_ANNOUNCE = 80
+WAIT_BAN_ID   = 81
+
+
+# ── Statistik ─────────────────────────────────────────────────────────────────
 
 async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -19,6 +31,7 @@ async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     s          = db.get_stats()
     user_stats = db.get_user_stats()
     state      = get_state()
+    banned     = len(db.get_banned_users())
 
     broadcast_info = ""
     if state["running"]:
@@ -36,18 +49,18 @@ async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         f"╭─ 📊 STATISTIK\n"
         f"│\n"
         f"│ ⭐ BROADCAST\n"
-        f"│  ⤷  Total Target  : {s['total_targets']}\n"
-        f"│  ⤷  Aktif         : {s['active_targets']}\n"
-        f"│  ⤷  Nonaktif      : {s['inactive_targets']}\n"
+        f"│  ⤷  Total Target   : {s['total_targets']}\n"
+        f"│  ⤷  Aktif          : {s['active_targets']}\n"
         f"│  ⤷  Total Broadcast: {s['total_broadcasts']}\n"
-        f"│  ⤷  Terkirim      : {s['total_success']}\n"
-        f"│  ⤷  Gagal         : {s['total_failed']}\n"
+        f"│  ⤷  Terkirim       : {s['total_success']}\n"
+        f"│  ⤷  Gagal          : {s['total_failed']}\n"
         f"│\n"
         f"│ ⭐ PENGGUNA\n"
-        f"│  ⤷  Pengguna Baru   : {user_stats['new_users']}\n"
-        f"│  ⤷  Total Pengguna  : {user_stats['total_users']}\n"
-        f"│  ⤷  Kunjungan Baru  : {user_stats['new_visits']}\n"
-        f"│  ⤷  Total Kunjungan : {user_stats['total_visits']}\n"
+        f"│  ⤷  Pengguna Baru  : {user_stats['new_users']}\n"
+        f"│  ⤷  Total Pengguna : {user_stats['total_users']}\n"
+        f"│  ⤷  Kunjungan Baru : {user_stats['new_visits']}\n"
+        f"│  ⤷  Total Kunjungan: {user_stats['total_visits']}\n"
+        f"│  ⤷  User Dibanned  : {banned}\n"
         f"{broadcast_info}"
         f"╰─ Data diperbarui setiap refresh."
     )
@@ -61,13 +74,7 @@ async def stats_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     )
 
 
-# ── Kelola Lisensi (Admin) ────────────────────────────────────────────────────
-
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
-import database as db
-from config import is_admin
-
+# ── Kelola Lisensi ────────────────────────────────────────────────────────────
 
 async def manage_licenses_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -75,7 +82,6 @@ async def manage_licenses_callback(update: Update, context: ContextTypes.DEFAULT
     if not is_admin(query.from_user.id):
         return
 
-    # Ambil semua lisensi
     with db.get_connection() as conn:
         rows = conn.execute("""
             SELECT l.id, l.user_id, l.paket, l.max_grup, l.expired_at,
@@ -94,9 +100,7 @@ async def manage_licenses_callback(update: Update, context: ContextTypes.DEFAULT
         )
         return
 
-    from datetime import datetime
     now = datetime.now().isoformat()
-
     text = "╭─ 👑 KELOLA LISENSI\n│\n"
     buttons = []
     for r in rows:
@@ -111,7 +115,6 @@ async def manage_licenses_callback(update: Update, context: ContextTypes.DEFAULT
 
     text += "╰─"
     buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")])
-
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
 
@@ -128,6 +131,196 @@ async def delete_license_callback(update: Update, context: ContextTypes.DEFAULT_
         f"╭─ ✅ LISENSI DIHAPUS\n│\n│ User ID: {user_id}\n╰─",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("👑 Kelola Lisensi", callback_data="cb_manage_licenses")],
-            [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")],
+            [InlineKeyboardButton("⬅️ Kembali",        callback_data="cb_dashboard")],
         ]),
+    )
+
+
+# ── Kelola User (Ban/Unban) ───────────────────────────────────────────────────
+
+async def manage_users_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    banned = db.get_banned_users()
+    all_users = db.get_all_users()
+
+    text = (
+        f"╭─ 👥 KELOLA USER\n"
+        f"│\n"
+        f"│  ⤷  Total User  : {len(all_users)}\n"
+        f"│  ⤷  Dibanned    : {len(banned)}\n"
+        f"│\n"
+    )
+
+    buttons = []
+    if banned:
+        text += "│ 🚫 USER DIBANNED:\n"
+        for u in banned:
+            name = u["username"] or u["first_name"] or str(u["user_id"])
+            text += f"│  • @{name} ({u['user_id']})\n"
+            buttons.append([InlineKeyboardButton(
+                f"✅ Unban @{name}",
+                callback_data=f"adm_unban_{u['user_id']}"
+            )])
+
+    text += "╰─"
+    buttons.append([InlineKeyboardButton("🚫 Ban User Baru", callback_data="adm_ban_new")])
+    buttons.append([InlineKeyboardButton("⬅️ Kembali",       callback_data="cb_dashboard")])
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+
+async def ban_new_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    await query.edit_message_text(
+        "╭─ 🚫 BAN USER\n"
+        "│\n"
+        "│ Kirim user_id yang mau dibanned.\n"
+        "│ Contoh: 123456789\n"
+        "╰─ /cancel untuk batal."
+    )
+    return WAIT_BAN_ID
+
+
+async def wait_ban_id(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    text = update.message.text.strip()
+    try:
+        target_id = int(text)
+    except ValueError:
+        await update.message.reply_text(
+            "╭─ ⚠️ Masukkan angka user_id yang valid.\n╰─",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Kelola User", callback_data="cb_manage_users")]]),
+        )
+        return ConversationHandler.END
+
+    db.ban_user(target_id)
+    db.add_log("INFO", f"User {target_id} dibanned oleh admin.")
+
+    await update.message.reply_text(
+        f"╭─ ✅ USER DIBANNED\n│\n│ User ID: {target_id}\n╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("👥 Kelola User", callback_data="cb_manage_users")],
+            [InlineKeyboardButton("⬅️ Kembali",     callback_data="cb_dashboard")],
+        ]),
+    )
+    return ConversationHandler.END
+
+
+async def unban_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    user_id = int(query.data.replace("adm_unban_", ""))
+    db.unban_user(user_id)
+    db.add_log("INFO", f"User {user_id} di-unban oleh admin.")
+
+    await query.edit_message_text(
+        f"╭─ ✅ USER DI-UNBAN\n│\n│ User ID: {user_id}\n╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("👥 Kelola User", callback_data="cb_manage_users")],
+            [InlineKeyboardButton("⬅️ Kembali",     callback_data="cb_dashboard")],
+        ]),
+    )
+
+
+def build_ban_conversation():
+    return ConversationHandler(
+        entry_points=[CallbackQueryHandler(ban_new_callback, pattern="^adm_ban_new$")],
+        states={
+            WAIT_BAN_ID: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_ban_id)],
+        },
+        fallbacks=[MessageHandler(filters.COMMAND, lambda u, c: ConversationHandler.END)],
+        per_chat=True, per_user=True, per_message=False, allow_reentry=True,
+    )
+
+
+# ── Broadcast Pengumuman ke Semua User ───────────────────────────────────────
+
+async def announce_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    user_ids = db.get_all_user_ids()
+    await query.edit_message_text(
+        f"╭─ 📢 BROADCAST PENGUMUMAN\n"
+        f"│\n"
+        f"│  ⤷  Total penerima: {len(user_ids)} user\n"
+        f"│\n"
+        f"│ Kirim teks pengumuman.\n"
+        f"│ Mendukung format bold, italic, dll.\n"
+        f"╰─ /cancel untuk batal."
+    )
+    return WAIT_ANNOUNCE
+
+
+async def wait_announce_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    text = update.message.text.strip()
+    if not text:
+        return ConversationHandler.END
+
+    user_ids = db.get_all_user_ids()
+    bot = update.get_bot()
+
+    progress_msg = await update.message.reply_text(
+        f"╭─ 📢 MENGIRIM PENGUMUMAN\n│\n│  ⤷  0/{len(user_ids)} terkirim\n╰─"
+    )
+
+    async def _send():
+        sent = failed = 0
+        for uid in user_ids:
+            try:
+                await bot.send_message(
+                    uid,
+                    f"📢 *PENGUMUMAN*\n\n{text}",
+                    parse_mode="Markdown",
+                )
+                sent += 1
+            except Exception:
+                failed += 1
+            await asyncio.sleep(0.05)
+
+        try:
+            await progress_msg.edit_text(
+                f"╭─ ✅ PENGUMUMAN TERKIRIM\n"
+                f"│\n"
+                f"│  ⤷  Berhasil : {sent}\n"
+                f"│  ⤷  Gagal    : {failed}\n"
+                f"╰─",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
+                ]),
+            )
+        except Exception:
+            pass
+
+    asyncio.create_task(_send())
+    db.add_log("INFO", f"Broadcast pengumuman dikirim ke {len(user_ids)} user.")
+    return ConversationHandler.END
+
+
+def build_announce_conversation():
+    return ConversationHandler(
+        entry_points=[CallbackQueryHandler(announce_callback, pattern="^cb_announce$")],
+        states={
+            WAIT_ANNOUNCE: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_announce_text)],
+        },
+        fallbacks=[MessageHandler(filters.COMMAND, lambda u, c: ConversationHandler.END)],
+        per_chat=True, per_user=True, per_message=False, allow_reentry=True,
     )

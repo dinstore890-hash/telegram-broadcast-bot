@@ -40,7 +40,9 @@ from handlers.broadcast import (
     pause_callback, resume_callback, cancel_running_callback,
     build_broadcast_conversation,
 )
-from handlers.stats import stats_callback, manage_licenses_callback, delete_license_callback
+from handlers.stats import stats_callback, manage_licenses_callback, delete_license_callback, \
+    manage_users_callback, unban_callback, announce_callback, \
+    build_ban_conversation, build_announce_conversation
 from config import is_admin
 import database as db
 from handlers.logs import logs_callback
@@ -48,6 +50,7 @@ from handlers.order import (
     order_callback, pilih_paket_callback,
     admin_confirm_callback, admin_reject_callback,
     build_order_conversation, setqris_handler,
+    manage_harga_callback, build_harga_conversation,
 )
 
 # ── Logging setup ─────────────────────────────────────────────────────────────
@@ -116,8 +119,11 @@ def build_app():
     app.add_handler(build_addtarget_conversation())
     app.add_handler(build_broadcast_conversation())
     app.add_handler(build_order_conversation())
+    app.add_handler(build_harga_conversation())
     app.add_handler(build_user_broadcast_conversation())
     app.add_handler(build_userbot_conversation())
+    app.add_handler(build_ban_conversation())
+    app.add_handler(build_announce_conversation())
 
     app.add_handler(CallbackQueryHandler(dashboard_callback,      pattern="^cb_dashboard$"))
     app.add_handler(CallbackQueryHandler(account_callback,        pattern="^cb_account$"))
@@ -142,6 +148,10 @@ def build_app():
     app.add_handler(CallbackQueryHandler(stats_callback,          pattern="^cb_stats$"))
     app.add_handler(CallbackQueryHandler(manage_licenses_callback, pattern="^cb_manage_licenses$"))
     app.add_handler(CallbackQueryHandler(delete_license_callback,  pattern="^adm_del_lic_"))
+    app.add_handler(CallbackQueryHandler(manage_users_callback,    pattern="^cb_manage_users$"))
+    app.add_handler(CallbackQueryHandler(unban_callback,           pattern="^adm_unban_"))
+    app.add_handler(CallbackQueryHandler(announce_callback,        pattern="^cb_announce$"))
+    app.add_handler(CallbackQueryHandler(manage_harga_callback,    pattern="^cb_manage_harga$"))
     app.add_handler(CallbackQueryHandler(logs_callback,           pattern="^cb_logs$"))
     app.add_handler(CallbackQueryHandler(settings_callback,       pattern="^cb_settings$"))
     app.add_handler(CallbackQueryHandler(set_botinfo_menu,        pattern="^cb_set_botinfo$"))

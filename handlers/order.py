@@ -28,10 +28,18 @@ PAKET = {
     "spesialpp":  {"label": "JASNEB SPESIAL++",  "max_grup": 100},
 }
 
-HARGA = {
+# Harga default — bisa diubah admin dari dashboard
+_HARGA_DEFAULT = {
     "spesial":   {7: 5000, 15: 8000, 30: 15000},
     "spesialpp": {7: 10000, 15: 15000, 30: 25000},
 }
+
+
+def _get_harga(paket_key: str, hari: int) -> int:
+    """Ambil harga dari DB settings, fallback ke default."""
+    key = f"paket_harga_{paket_key}_{hari}"
+    default = _HARGA_DEFAULT.get(paket_key, {}).get(hari, 0)
+    return int(db.get_setting(key, str(default)))
 
 
 def _fmt_harga(harga: int) -> str:
@@ -47,17 +55,14 @@ def _paket_keyboard() -> InlineKeyboardMarkup:
 
 
 def _durasi_keyboard(paket_key: str) -> InlineKeyboardMarkup:
-    durasi_list = list(HARGA[paket_key].items())
+    durasi_list = list(_HARGA_DEFAULT[paket_key].keys())
     buttons = []
-    row = []
-    for i, (hari, harga) in enumerate(durasi_list):
-        row.append(InlineKeyboardButton(
+    for hari in durasi_list:
+        harga = _get_harga(paket_key, hari)
+        buttons.append([InlineKeyboardButton(
             f"{hari} Hari • {_fmt_harga(harga)}",
             callback_data=f"ord_durasi_{paket_key}_{hari}",
-        ))
-        if len(row) == 2 or i == len(durasi_list) - 1:
-            buttons.append(row)
-            row = []
+        )])
     buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_order")])
     return InlineKeyboardMarkup(buttons)
 
@@ -68,19 +73,29 @@ async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     query = update.callback_query
     await query.answer()
 
+    # Ambil harga dari DB (bisa diubah admin)
+    sp7  = _fmt_harga(_get_harga("spesial",   7))
+    sp15 = _fmt_harga(_get_harga("spesial",   15))
+    sp30 = _fmt_harga(_get_harga("spesial",   30))
+    pp7  = _fmt_harga(_get_harga("spesialpp", 7))
+    pp15 = _fmt_harga(_get_harga("spesialpp", 15))
+    pp30 = _fmt_harga(_get_harga("spesialpp", 30))
+
+    bot_owner = db.get_setting("bot_owner", "@GmailMarket67")
+
     await query.edit_message_text(
-        "💎 JASNEB USERBOT BY @GmailMarket67\n"
+        f"💎 JASNEB USERBOT BY {bot_owner}\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         "\n"
-        "🔥 SPESIAL — 50 Grup\n"
-        "• 7 Hari → Rp. 5.000\n"
-        "• 15 Hari → Rp. 8.000\n"
-        "• 30 Hari → Rp. 15.000\n"
+        f"🔥 SPESIAL — 50 Grup\n"
+        f"• 7 Hari  → {sp7}\n"
+        f"• 15 Hari → {sp15}\n"
+        f"• 30 Hari → {sp30}\n"
         "\n"
-        "⚡ SPESIAL++ — 100 Grup\n"
-        "• 7 Hari → Rp. 10.000\n"
-        "• 15 Hari → Rp. 15.000\n"
-        "• 30 Hari → Rp. 25.000\n"
+        f"⚡ SPESIAL++ — 100 Grup\n"
+        f"• 7 Hari  → {pp7}\n"
+        f"• 15 Hari → {pp15}\n"
+        f"• 30 Hari → {pp30}\n"
         "\n"
         "━━━━━━━━━━━━━━━━━━━━━━\n"
         "✅ Fitur Semua Paket:\n"
@@ -92,7 +107,7 @@ async def order_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         "\n"
         "⚡ Bonus Spesial++:\n"
         "• 100 grup (2x lebih banyak)\n"
-        "• Support media & emoji premium\n"
+        "• Tanpa watermark\n"
         "\n"
         "👇 Pilih paket:",
         reply_markup=_paket_keyboard(),
@@ -107,10 +122,9 @@ async def pilih_paket_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     paket = PAKET[paket_key]
     context.user_data["ord_paket"] = paket_key
 
-    harga_list = HARGA[paket_key]
     lines = "\n".join(
-        f"│  ✦ {hari} Hari ➜ {_fmt_harga(harga)}"
-        for hari, harga in harga_list.items()
+        f"│  ✦ {hari} Hari ➜ {_fmt_harga(_get_harga(paket_key, hari))}"
+        for hari in _HARGA_DEFAULT[paket_key].keys()
     )
 
     await query.edit_message_text(
@@ -132,7 +146,7 @@ async def pilih_durasi_callback(update: Update, context: ContextTypes.DEFAULT_TY
     parts = query.data.replace("ord_durasi_", "").rsplit("_", 1)
     paket_key = parts[0]
     hari = int(parts[1])
-    harga = HARGA[paket_key][hari]
+    harga = _get_harga(paket_key, hari)
     paket = PAKET[paket_key]
 
     context.user_data["ord_paket"]  = paket_key
@@ -416,6 +430,115 @@ async def setqris_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         "│\n"
         "│ QRIS sudah aktif dan siap digunakan.\n"
         "╰─"
+    )
+
+
+# ── Admin: Ubah Harga Paket ───────────────────────────────────────────────────
+
+WAIT_HARGA = 35
+
+_HARGA_BACK = InlineKeyboardMarkup([
+    [InlineKeyboardButton("💰 Harga Paket", callback_data="cb_manage_harga")],
+    [InlineKeyboardButton("⬅️ Kembali",     callback_data="cb_dashboard")],
+])
+
+
+async def manage_harga_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    lines = "╭─ 💰 UBAH HARGA PAKET\n│\n"
+    buttons = []
+    for paket_key, durasi_dict in _HARGA_DEFAULT.items():
+        label = PAKET[paket_key]["label"]
+        lines += f"│ 📦 {label}:\n"
+        for hari in durasi_dict:
+            harga = _get_harga(paket_key, hari)
+            lines += f"│  ⤷  {hari} Hari : {_fmt_harga(harga)}\n"
+            buttons.append([InlineKeyboardButton(
+                f"✏️ {label} {hari} Hari",
+                callback_data=f"adm_setharga_{paket_key}_{hari}",
+            )])
+        lines += "│\n"
+
+    lines += "╰─ Pilih yang ingin diubah:"
+    buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")])
+
+    await query.edit_message_text(lines, reply_markup=InlineKeyboardMarkup(buttons))
+
+
+async def set_harga_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return ConversationHandler.END
+
+    parts = query.data.replace("adm_setharga_", "").rsplit("_", 1)
+    paket_key = parts[0]
+    hari = int(parts[1])
+    current = _get_harga(paket_key, hari)
+
+    context.user_data["harga_paket_key"] = paket_key
+    context.user_data["harga_hari"]      = hari
+
+    label = PAKET[paket_key]["label"]
+    await query.edit_message_text(
+        f"╭─ ✏️ UBAH HARGA\n"
+        f"│\n"
+        f"│  Paket  : {label}\n"
+        f"│  Durasi : {hari} Hari\n"
+        f"│  Saat ini: {_fmt_harga(current)}\n"
+        f"│\n"
+        f"│ Kirim harga baru (angka saja).\n"
+        f"│ Contoh: 7500\n"
+        f"╰─ /cancel untuk batal."
+    )
+    return WAIT_HARGA
+
+
+async def wait_harga_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    if not is_admin(update.effective_user.id):
+        return ConversationHandler.END
+
+    paket_key = context.user_data.pop("harga_paket_key", None)
+    hari      = context.user_data.pop("harga_hari", None)
+
+    try:
+        harga = int(update.message.text.strip())
+        if harga <= 0:
+            raise ValueError
+    except ValueError:
+        await update.message.reply_text(
+            "╭─ ⚠️ Input tidak valid. Masukkan angka positif.\n╰─",
+            reply_markup=_HARGA_BACK,
+        )
+        return ConversationHandler.END
+
+    db.set_setting(f"paket_harga_{paket_key}_{hari}", str(harga))
+    db.add_log("INFO", f"Harga {paket_key} {hari} hari diubah ke {harga}")
+
+    label = PAKET[paket_key]["label"]
+    await update.message.reply_text(
+        f"╭─ ✅ HARGA DIPERBARUI\n"
+        f"│\n"
+        f"│  {label} {hari} Hari\n"
+        f"│  ➜ {_fmt_harga(harga)}\n"
+        f"╰─ Harga baru langsung berlaku.",
+        reply_markup=_HARGA_BACK,
+    )
+    return ConversationHandler.END
+
+
+def build_harga_conversation() -> ConversationHandler:
+    return ConversationHandler(
+        entry_points=[CallbackQueryHandler(set_harga_callback, pattern="^adm_setharga_")],
+        states={
+            WAIT_HARGA: [MessageHandler(filters.TEXT & ~filters.COMMAND, wait_harga_input)],
+        },
+        fallbacks=[MessageHandler(filters.COMMAND, lambda u, c: ConversationHandler.END)],
+        per_chat=True, per_user=True, per_message=False, allow_reentry=True,
     )
 
 

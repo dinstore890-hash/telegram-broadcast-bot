@@ -18,6 +18,11 @@ def init_db() -> None:
             conn.execute("ALTER TABLE accounts ADD COLUMN string_session TEXT DEFAULT ''")
         except Exception:
             pass
+        # Migration: tambah kolom banned ke users
+        try:
+            conn.execute("ALTER TABLE users ADD COLUMN is_banned INTEGER DEFAULT 0")
+        except Exception:
+            pass
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS targets (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -679,3 +684,76 @@ def set_user_setting(user_id: int, key: str, value: str) -> None:
             "INSERT OR REPLACE INTO settings (key, value) VALUES (?,?)",
             (f"user_{user_id}_{key}", value),
         )
+
+
+# ── Ban / Unban User ──────────────────────────────────────────────────────────
+
+def ban_user(user_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE users SET is_banned = 1 WHERE user_id = ?", (user_id,))
+
+
+def unban_user(user_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute("UPDATE users SET is_banned = 0 WHERE user_id = ?", (user_id,))
+
+
+def is_user_banned(user_id: int) -> bool:
+    with get_connection() as conn:
+        row = conn.execute("SELECT is_banned FROM users WHERE user_id = ?", (user_id,)).fetchone()
+        return bool(row and row["is_banned"])
+
+
+def get_banned_users() -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM users WHERE is_banned = 1").fetchall()
+
+
+def get_all_users() -> list[sqlite3.Row]:
+    with get_connection() as conn:
+        return conn.execute("SELECT * FROM users ORDER BY joined_at DESC").fetchall()
+
+
+def get_all_user_ids() -> list[int]:
+    """Ambil semua user_id untuk broadcast pengumuman."""
+    with get_connection() as conn:
+        rows = conn.execute("SELECT user_id FROM users WHERE is_banned = 0").fetchall()
+        return [r["user_id"] for r in rows]
+
+
+# ── Paket Harga (bisa diubah admin) ──────────────────────────────────────────
+
+_DEFAULT_PAKETS = {
+    "spesial_7":    ("Spesial",   50, 7,  5000),
+    "spesial_15":   ("Spesial",   50, 15, 8000),
+    "spesial_30":   ("Spesial",   50, 30, 15000),
+    "spesialpp_7":  ("Spesial++", 100, 7, 10000),
+    "spesialpp_15": ("Spesial++", 100, 15, 15000),
+    "spesialpp_30": ("Spesial++", 100, 30, 25000),
+}
+
+def get_paket_list() -> list[dict]:
+    """Ambil daftar paket dari settings DB, fallback ke default."""
+    result = []
+    for key, (nama, max_grup, durasi, harga_default) in _DEFAULT_PAKETS.items():
+        harga = int(get_setting(f"paket_harga_{key}", str(harga_default)))
+        result.append({
+            "key": key,
+            "nama": nama,
+            "max_grup": max_grup,
+            "durasi_hari": durasi,
+            "harga": harga,
+        })
+    return result
+
+
+def set_paket_harga(key: str, harga: int) -> None:
+    set_setting(f"paket_harga_{key}", str(harga))
+
+
+def get_paket_by_key(key: str) -> dict | None:
+    if key not in _DEFAULT_PAKETS:
+        return None
+    nama, max_grup, durasi, harga_default = _DEFAULT_PAKETS[key]
+    harga = int(get_setting(f"paket_harga_{key}", str(harga_default)))
+    return {"key": key, "nama": nama, "max_grup": max_grup, "durasi_hari": durasi, "harga": harga}

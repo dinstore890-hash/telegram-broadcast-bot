@@ -25,8 +25,15 @@ def _main_keyboard(is_broadcasting: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton("👤 Account",    callback_data="cb_account"),
             InlineKeyboardButton("⚙️ Pengaturan", callback_data="cb_settings"),
         ],
-        [InlineKeyboardButton("👑 Kelola Lisensi", callback_data="cb_manage_licenses")],
-        [InlineKeyboardButton("🔄 Refresh",        callback_data="cb_dashboard")],
+        [
+            InlineKeyboardButton("👑 Kelola Lisensi", callback_data="cb_manage_licenses"),
+            InlineKeyboardButton("👥 Kelola User",    callback_data="cb_manage_users"),
+        ],
+        [
+            InlineKeyboardButton("📢 Pengumuman",  callback_data="cb_announce"),
+            InlineKeyboardButton("💰 Ubah Harga",  callback_data="cb_manage_harga"),
+        ],
+        [InlineKeyboardButton("🔄 Refresh", callback_data="cb_dashboard")],
     ])
 
 
@@ -201,6 +208,17 @@ async def _build_admin_dashboard(connected: bool) -> str:
 async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = update.effective_user
     db.track_user(user.id, user.username, user.first_name)
+
+    # Cek banned
+    if db.is_user_banned(user.id):
+        await update.message.reply_text(
+            "╭─ 🚫 AKUN DIBANNED\n"
+            "│\n"
+            "│ Akun kamu telah dibanned.\n"
+            "│ Hubungi admin untuk informasi lebih lanjut.\n"
+            "╰─"
+        )
+        return
 
     connected = await telegram_client.is_connected()
     from services.broadcast_service import is_running
