@@ -380,12 +380,21 @@ async def ub_list_groups(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         text += f"│ ...dan {len(targets)-30} lainnya\n"
     text += "╰─"
 
+    # Tombol hapus per grup (maks 30)
+    buttons = []
+    for t in targets[:30]:
+        buttons.append([
+            InlineKeyboardButton(
+                f"🗑️ {t['title'][:30]}",
+                callback_data=f"ub_delgrp_{t['id']}"
+            )
+        ])
+    buttons.append([InlineKeyboardButton("✅ Aktifkan Semua", callback_data="ub_activate_all")])
+    buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="ub_groups")])
+
     await query.edit_message_text(
         text,
-        reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Aktifkan Semua", callback_data="ub_activate_all")],
-            [InlineKeyboardButton("⬅️ Kembali", callback_data="ub_groups")],
-        ]),
+        reply_markup=InlineKeyboardMarkup(buttons),
     )
 
 
@@ -400,6 +409,56 @@ async def ub_activate_all(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             [InlineKeyboardButton("⬅️ Kembali", callback_data="ub_groups")]
         ]),
     )
+
+
+async def ub_delete_group(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+
+    # callback_data format: ub_delgrp_{target_id}
+    try:
+        target_id = int(query.data.split("_")[-1])
+    except (ValueError, IndexError):
+        await query.answer("❌ ID grup tidak valid.", show_alert=True)
+        return
+
+    success = db.delete_user_target(user_id, target_id)
+    if success:
+        await query.answer("✅ Grup berhasil dihapus.", show_alert=True)
+    else:
+        await query.answer("❌ Gagal menghapus grup.", show_alert=True)
+
+    # Refresh daftar grup
+    targets = db.get_user_targets(user_id)
+    if not targets:
+        await query.edit_message_text(
+            "╭─ 👥 DAFTAR GRUP\n│\n│ Belum ada grup.\n╰─",
+            reply_markup=_BACK_BTN,
+        )
+        return
+
+    text = f"╭─ 👥 DAFTAR GRUP ({len(targets)})\n│\n"
+    for i, t in enumerate(targets[:30], 1):
+        icon = "🟢" if t["is_active"] else "🔴"
+        uname = f"@{t['username']}" if t["username"] else "—"
+        text += f"│ {i}. {icon} {t['title']}\n│  ⤷  {uname}\n"
+    if len(targets) > 30:
+        text += f"│ ...dan {len(targets)-30} lainnya\n"
+    text += "╰─"
+
+    buttons = []
+    for t in targets[:30]:
+        buttons.append([
+            InlineKeyboardButton(
+                f"🗑️ {t['title'][:30]}",
+                callback_data=f"ub_delgrp_{t['id']}"
+            )
+        ])
+    buttons.append([InlineKeyboardButton("✅ Aktifkan Semua", callback_data="ub_activate_all")])
+    buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="ub_groups")])
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
 
 async def ub_add_group_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
