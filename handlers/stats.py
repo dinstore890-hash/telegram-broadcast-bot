@@ -155,8 +155,16 @@ async def manage_users_callback(update: Update, context: ContextTypes.DEFAULT_TY
         f"│  ⤷  Aktif       : {len(active_users)}\n"
         f"│  ⤷  Dibanned    : {len(banned)}\n"
         f"│\n"
-        f"╰─ Pilih aksi:"
     )
+    for u in all_users[:20]:
+        name   = u["username"] or u["first_name"] or "NoName"
+        uid    = u["user_id"]
+        joined = u["joined_at"][:16].replace("T", " ") if u["joined_at"] else "—"
+        ban    = " 🚫" if u["is_banned"] else ""
+        text  += f"│ • {name}{ban}\n│   ⤷ ID: {uid} | {joined}\n"
+    if len(all_users) > 20:
+        text += f"│ ...dan {len(all_users)-20} lainnya\n"
+    text += "╰─ Pilih aksi:"
 
     buttons = [
         [InlineKeyboardButton("🚫 Ban User",    callback_data="adm_show_userlist_ban")],
@@ -189,7 +197,8 @@ async def show_userlist_ban_callback(update: Update, context: ContextTypes.DEFAU
     for u in active_users[:30]:  # max 30 biar tidak overflow
         name = u["username"] or u["first_name"] or "NoName"
         uid  = u["user_id"]
-        text += f"│ • {name} | {uid}\n"
+        joined = u["joined_at"][:16].replace("T", " ") if u["joined_at"] else "—"
+        text += f"│ • {name} | {uid}\n│   ⤷ Masuk: {joined}\n"
         buttons.append([InlineKeyboardButton(
             f"🚫 Ban {name} ({uid})",
             callback_data=f"adm_ban_{uid}",
