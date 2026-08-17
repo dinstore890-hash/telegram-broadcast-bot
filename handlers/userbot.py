@@ -859,17 +859,6 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
             # Cek pause — tunggu sampai di-resume
             if _ub_paused.get(user_id):
-                try:
-                    await msg.edit_text(
-                        f"╭─ ⏸️ BROADCAST DIJEDA\n"
-                        f"│  ⤷  Progress: {i-1}/{len(targets)}\n"
-                        f"│  ⤷  Berhasil: {success}\n"
-                        f"│  ⤷  Gagal   : {failed}\n"
-                        f"╰─ Tekan ▶️ Lanjut untuk melanjutkan...",
-                        reply_markup=_stop_pause_btn(paused=True),
-                    )
-                except Exception:
-                    pass
                 while _ub_paused.get(user_id):
                     await asyncio.sleep(0.5)
                     if _ub_cancel.get(user_id):
@@ -975,6 +964,12 @@ async def ub_pause_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await query.answer("⏸️ Broadcast dijeda.")
     user_id = query.from_user.id
     _ub_paused[user_id] = True
+    try:
+        await query.edit_message_reply_markup(
+            reply_markup=_stop_pause_btn(paused=True),
+        )
+    except Exception:
+        pass
 
 
 async def ub_resume_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -982,6 +977,12 @@ async def ub_resume_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer("▶️ Broadcast dilanjutkan.")
     user_id = query.from_user.id
     _ub_paused[user_id] = False
+    try:
+        await query.edit_message_reply_markup(
+            reply_markup=_stop_pause_btn(paused=False),
+        )
+    except Exception:
+        pass
 
 
 # ── Pengaturan ────────────────────────────────────────────────────────────────
