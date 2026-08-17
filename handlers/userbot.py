@@ -753,6 +753,20 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
     delay = int(db.get_user_setting(user_id, "delay", "5"))
     _ub_cancel[user_id] = False
 
+    # Tentukan watermark berdasarkan paket
+    lic = db.get_license(user_id)
+    paket = (lic["paket"] or "").lower() if lic else ""
+    is_plus = "++" in paket
+    if is_plus:
+        watermark = ""  # Spesial++ bebas watermark
+    else:
+        # Watermark bisa diubah admin lewat settings
+        wm = db.get_setting("watermark_text", "")
+        if wm:
+            watermark = "\n\n" + wm
+        else:
+            watermark = "\n\n• *Promote Auto by* @jasnebbot\n• Development by @GmailMarket67"
+
     msg = await query.edit_message_text(
         f"╭─ 📢 BROADCAST BERJALAN\n"
         f"│  ⤷  Progress: 0/{len(targets)}\n"
@@ -785,14 +799,25 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if target["chat_type"] == "channel":
                 continue
 
+            # Gabungkan konten + watermark
+            content_with_wm = msg_obj["content"] + watermark if watermark else msg_obj["content"]
+
             try:
-                await client.send_message(target["chat_id"], msg_obj["content"])
+                await client.send_message(
+                    target["chat_id"],
+                    content_with_wm,
+                    parse_mode="md",
+                )
                 success += 1
             except FloodWaitError as e:
                 logger.warning(f"FloodWait {e.seconds}s user {user_id}")
                 await asyncio.sleep(e.seconds + 3)
                 try:
-                    await client.send_message(target["chat_id"], msg_obj["content"])
+                    await client.send_message(
+                        target["chat_id"],
+                        content_with_wm,
+                        parse_mode="md",
+                    )
                     success += 1
                 except Exception:
                     failed += 1

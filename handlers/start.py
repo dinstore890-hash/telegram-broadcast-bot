@@ -395,6 +395,7 @@ _BOTINFO_FIELDS = {
     "bot_tagline":     ("Tagline",         "Gunakan menu untuk mulai promosi instant 🤖"),
     "bot_about":       ("Bio/About",       "🚀 Userbot Jaseb Spesial 🚀\n\nDevelopment by @GmailMarket67\nPromote Auto by @GmailMarket67"),
     "bot_description": ("Description",     "🤖 Bot Broadcast Otomatis ke Ratusan Grup!\n💎 Gmail Market JASNEB | Fast • Aman • Terpercaya\n👥 t.me/+sVVIxK_QnhthM2E1 | 📢 t.me/GmailxMarket\n👤 Owner: @GmailMarket67"),
+    "watermark_text":  ("Watermark Broadcast", "• *Promote Auto by* @jasnebbot\n• Development by @GmailMarket67"),
 }
 
 # Field yang langsung sync ke profil Telegram
@@ -420,6 +421,7 @@ async def set_botinfo_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     tagline = db.get_setting("bot_tagline",     "Gunakan menu untuk mulai promosi instant 🤖")
     about   = db.get_setting("bot_about",       "🚀 Userbot Jaseb Spesial 🚀")
     desc    = db.get_setting("bot_description", "🤖 Bot Broadcast Otomatis...")
+    wm      = db.get_setting("watermark_text",  "• Promote Auto by @jasnebbot")
 
     def _short(s, n=35):
         return s[:n] + "..." if len(s) > n else s
@@ -438,6 +440,9 @@ async def set_botinfo_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         f"│  ⤷  Bio/About : {_short(about)}\n"
         f"│  ⤷  Description: {_short(desc)}\n"
         f"│\n"
+        f"│ 💧 Watermark Broadcast (Spesial):\n"
+        f"│  ⤷  {_short(wm)}\n"
+        f"│\n"
         f"╰─ Pilih field yang ingin diubah:"
     )
     await query.edit_message_text(
@@ -450,6 +455,7 @@ async def set_botinfo_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             [InlineKeyboardButton("✏️ Tagline",      callback_data="cb_editbotinfo_bot_tagline")],
             [InlineKeyboardButton("✏️ Bio/About ⚡",  callback_data="cb_editbotinfo_bot_about")],
             [InlineKeyboardButton("✏️ Description ⚡",callback_data="cb_editbotinfo_bot_description")],
+            [InlineKeyboardButton("💧 Ubah Watermark", callback_data="cb_editbotinfo_watermark_text")],
             [InlineKeyboardButton("🔄 Reset Default", callback_data="cb_resetbotinfo")],
             [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_settings")],
         ]),
