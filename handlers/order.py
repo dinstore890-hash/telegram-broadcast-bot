@@ -378,9 +378,9 @@ async def admin_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
             chat_id=INVOICE_GROUP_ID,
             message_thread_id=INVOICE_TOPIC_ID,
             text=(
-                f"🧾 *INVOICE TRANSAKSI*\n"
+                f"🧾 INVOICE TRANSAKSI\n"
                 f"━━━━━━━━━━━━━━━━━━━━\n"
-                f"⭐ Order ID   : `#{order_id}`\n"
+                f"⭐ Order ID   : #{order_id}\n"
                 f"⭐ Pembeli    : {buyer}\n"
                 f"⭐ Paket      : {order['paket']}\n"
                 f"⭐ Durasi     : {order['durasi_hari']} Hari\n"
@@ -390,7 +390,6 @@ async def admin_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
                 f"━━━━━━━━━━━━━━━━━━━━\n"
                 f"✅ Pembayaran Dikonfirmasi"
             ),
-            parse_mode="Markdown",
         )
     except Exception as e:
         logger.error(f"Gagal kirim invoice ke grup: {e}")
