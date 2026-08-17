@@ -976,13 +976,6 @@ async def ub_resume_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE
     await query.answer("▶️ Broadcast dilanjutkan.")
     user_id = query.from_user.id
     _ub_paused[user_id] = False
-    try:
-        await query.edit_message_text(
-            "╭─ 📢 BROADCAST DILANJUTKAN\n│\n│ Sedang berjalan...\n╰─",
-            reply_markup=_stop_pause_btn(paused=False),
-        )
-    except Exception:
-        pass
 
 
 # ── Pengaturan ────────────────────────────────────────────────────────────────
