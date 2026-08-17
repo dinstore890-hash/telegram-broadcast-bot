@@ -872,42 +872,101 @@ async def ub_bantuan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     query = update.callback_query
     await query.answer()
 
+    bot_owner   = db.get_setting("bot_owner",   "@GmailMarket67")
+    bot_grup    = db.get_setting("bot_grup",    "https://t.me/+sVVIxK_QnhthM2E1")
+    bot_channel = db.get_setting("bot_channel", "https://t.me/GmailxMarket")
+    cs_url      = f"https://t.me/{bot_owner.lstrip('@')}"
+
     await query.edit_message_text(
-        "⚠️ BANTUAN — JASNEB USERBOT\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        "\n"
-        "📖 CARA PAKAI:\n"
-        "\n"
-        "1️⃣ Login Akun\n"
-        "   • Tap 📱 Akun → 🔑 Login\n"
-        "   • Kirim nomor HP → masukkan OTP\n"
-        "\n"
-        "2️⃣ Tambah Grup Target\n"
-        "   • Tap 👥 Grup & List\n"
-        "   • Import dari akun atau tambah manual\n"
-        "\n"
-        "3️⃣ Tambah Pesan\n"
-        "   • Tap 📝 Tambah Pesan\n"
-        "   • Isi judul dan isi pesan\n"
-        "\n"
-        "4️⃣ Broadcast\n"
-        "   • Tap 📢 Broadcast\n"
-        "   • Pilih pesan → langsung kirim\n"
-        "\n"
-        "⚙️ Atur jeda di menu Pengaturan\n"
-        "   ✅ 10-15 detik = aman\n"
-        "   🛡️ 30+ detik = sangat aman\n"
-        "\n"
-        "━━━━━━━━━━━━━━━━━━━━━━\n"
-        "📞 CONTACT SUPPORT:\n"
-        "• CS: @GmailMarket67\n"
-        "• Channel: @GmailxMarket\n"
-        "• Grup: https://t.me/+sVVIxK_QnhthM2E1",
+        f"⚠️ BANTUAN — JASNEB USERBOT\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"\n"
+        f"Pilih menu bantuan di bawah:",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("💬 Chat CS", url="https://t.me/GmailMarket67")],
-            [InlineKeyboardButton("📢 Channel", url="https://t.me/GmailxMarket")],
-            [InlineKeyboardButton("👥 Grup", url="https://t.me/+sVVIxK_QnhthM2E1")],
-            [InlineKeyboardButton("⬅️ Kembali", callback_data="ub_home")],
+            [InlineKeyboardButton("📚 Cara Pasang",    callback_data="ub_cara_pasang")],
+            [InlineKeyboardButton("💡 Fitur Unggulan", callback_data="ub_fitur_unggulan")],
+            [InlineKeyboardButton("💬 Chat CS",        url=cs_url)],
+            [InlineKeyboardButton("📢 Channel",        url=bot_channel if bot_channel.startswith("http") else f"https://t.me/{bot_channel.lstrip('@')}")],
+            [InlineKeyboardButton("👥 Grup",           url=bot_grup)],
+            [InlineKeyboardButton("⬅️ Kembali",        callback_data="ub_home")],
+        ]),
+    )
+
+
+async def ub_cara_pasang(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    await query.edit_message_text(
+        "📚 CARA PASANG USERBOT\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "\n"
+        "🎁 Lakukan Pembelian\n"
+        "⚪️ Tekan tombol 🛒 Order Sekarang\n"
+        "⚪️ Pilih paket yang Anda inginkan\n"
+        "⚪️ Selesaikan pembayaran sesuai instruksi\n"
+        "\n"
+        "👤 Login Akun Telegram\n"
+        "⚪️ Tekan menu 📢 Mulai Broadcast\n"
+        "⚪️ Pilih 👤 Akun → 🔑 Login\n"
+        "⚪️ Kirim nomor HP (format: +628xxx)\n"
+        "⚪️ Masukkan kode OTP yang diterima\n"
+        "⚪️ Wajib spasi kode, contoh: 1 2 3 4 5\n"
+        "⚪️ Jika ada 2FA, masukkan password\n"
+        "\n"
+        "👥 Tambah Grup Target\n"
+        "⚪️ Menu 👥 Grup & List\n"
+        "⚪️ Import dari akun atau tambah manual\n"
+        "\n"
+        "📝 Tambah Pesan\n"
+        "⚪️ Menu ✉️ Pesan → Tambah Pesan\n"
+        "⚪️ Isi judul dan isi pesan\n"
+        "\n"
+        "📢 Mulai Broadcast\n"
+        "⚪️ Menu 📢 Broadcast\n"
+        "⚪️ Pilih pesan → langsung kirim\n"
+        "\n"
+        "✅ Userbot siap digunakan!",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⬅️ Kembali ke Bantuan", callback_data="ub_bantuan")],
+        ]),
+    )
+
+
+async def ub_fitur_unggulan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    await query.edit_message_text(
+        "💡 FITUR UNGGULAN USERBOT\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "\n"
+        "🚀 AUTO PROMOSI\n"
+        "⚪️ Broadcast ke ratusan grup\n"
+        "⚪️ Pakai akun Telegram sendiri\n"
+        "⚪️ Support semua format pesan\n"
+        "⚪️ Notifikasi terkirim/gagal\n"
+        "⚪️ Jeda custom & stop kapan saja\n"
+        "\n"
+        "💎 PAKET SPESIAL\n"
+        "⚪️ Max 50 grup target\n"
+        "⚪️ Multi list pesan\n"
+        "⚪️ Watermark otomatis\n"
+        "\n"
+        "⚡ PAKET SPESIAL++\n"
+        "⚪️ Semua fitur Spesial\n"
+        "⚪️ Max 100 grup target\n"
+        "⚪️ Tanpa watermark\n"
+        "\n"
+        "🛡️ KEAMANAN\n"
+        "⚪️ Sesi login aman & terenkripsi\n"
+        "⚪️ Data privat 100% terjaga\n"
+        "⚪️ Bisa logout kapan saja\n"
+        "\n"
+        "━━━━━━━━━━━━━━━━━━━━━━\n"
+        "🔥 Solusi Lengkap untuk Promosi Digital!",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⬅️ Kembali ke Bantuan", callback_data="ub_bantuan")],
         ]),
     )
 
