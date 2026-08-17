@@ -146,31 +146,110 @@ async def manage_users_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     banned = db.get_banned_users()
     all_users = db.get_all_users()
+    active_users = [u for u in all_users if not u["is_banned"]]
 
     text = (
         f"╭─ 👥 KELOLA USER\n"
         f"│\n"
         f"│  ⤷  Total User  : {len(all_users)}\n"
+        f"│  ⤷  Aktif       : {len(active_users)}\n"
         f"│  ⤷  Dibanned    : {len(banned)}\n"
         f"│\n"
+        f"╰─ Pilih aksi:"
     )
 
-    buttons = []
-    if banned:
-        text += "│ 🚫 USER DIBANNED:\n"
-        for u in banned:
-            name = u["username"] or u["first_name"] or str(u["user_id"])
-            text += f"│  • @{name} ({u['user_id']})\n"
-            buttons.append([InlineKeyboardButton(
-                f"✅ Unban @{name}",
-                callback_data=f"adm_unban_{u['user_id']}"
-            )])
-
-    text += "╰─"
-    buttons.append([InlineKeyboardButton("🚫 Ban User Baru", callback_data="adm_ban_new")])
-    buttons.append([InlineKeyboardButton("⬅️ Kembali",       callback_data="cb_dashboard")])
+    buttons = [
+        [InlineKeyboardButton("🚫 Ban User",    callback_data="adm_show_userlist_ban")],
+        [InlineKeyboardButton("✅ Unban User",  callback_data="adm_show_userlist_unban")],
+        [InlineKeyboardButton("⬅️ Kembali",     callback_data="cb_dashboard")],
+    ]
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+
+async def show_userlist_ban_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Tampilkan semua user aktif dengan tombol Ban per user."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    all_users = db.get_all_users()
+    active_users = [u for u in all_users if not u["is_banned"]]
+
+    if not active_users:
+        await query.edit_message_text(
+            "╭─ 👥 DAFTAR USER\n│\n│ Tidak ada user aktif.\n╰─",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Kembali", callback_data="cb_manage_users")]]),
+        )
+        return
+
+    text = "╭─ 🚫 PILIH USER UNTUK DIBAN\n│\n"
+    buttons = []
+    for u in active_users[:30]:  # max 30 biar tidak overflow
+        name = u["username"] or u["first_name"] or "NoName"
+        uid  = u["user_id"]
+        text += f"│ • {name} | {uid}\n"
+        buttons.append([InlineKeyboardButton(
+            f"🚫 Ban {name} ({uid})",
+            callback_data=f"adm_ban_{uid}",
+        )])
+
+    text += "╰─"
+    buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_manage_users")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+
+async def show_userlist_unban_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Tampilkan semua user banned dengan tombol Unban per user."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    banned = db.get_banned_users()
+
+    if not banned:
+        await query.edit_message_text(
+            "╭─ ✅ UNBAN USER\n│\n│ Tidak ada user yang dibanned.\n╰─",
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Kembali", callback_data="cb_manage_users")]]),
+        )
+        return
+
+    text = "╭─ ✅ PILIH USER UNTUK DIUNBAN\n│\n"
+    buttons = []
+    for u in banned:
+        name = u["username"] or u["first_name"] or "NoName"
+        uid  = u["user_id"]
+        text += f"│ • {name} | {uid}\n"
+        buttons.append([InlineKeyboardButton(
+            f"✅ Unban {name} ({uid})",
+            callback_data=f"adm_unban_{uid}",
+        )])
+
+    text += "╰─"
+    buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="cb_manage_users")])
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+
+async def ban_direct_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Ban user langsung dari tombol list."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    user_id = int(query.data.replace("adm_ban_", ""))
+    db.ban_user(user_id)
+    db.add_log("INFO", f"User {user_id} dibanned oleh admin.")
+
+    await query.edit_message_text(
+        f"╭─ ✅ USER DIBANNED\n│\n│ User ID: {user_id}\n╰─",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("👥 Kelola User", callback_data="cb_manage_users")],
+            [InlineKeyboardButton("⬅️ Kembali",     callback_data="cb_dashboard")],
+        ]),
+    )
 
 
 async def ban_new_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:

@@ -42,6 +42,7 @@ from handlers.broadcast import (
 )
 from handlers.stats import stats_callback, manage_licenses_callback, delete_license_callback, \
     manage_users_callback, unban_callback, announce_callback, \
+    show_userlist_ban_callback, show_userlist_unban_callback, ban_direct_callback, \
     build_ban_conversation, build_announce_conversation
 from config import is_admin
 import database as db
@@ -148,10 +149,13 @@ def build_app():
     app.add_handler(CallbackQueryHandler(stats_callback,          pattern="^cb_stats$"))
     app.add_handler(CallbackQueryHandler(manage_licenses_callback, pattern="^cb_manage_licenses$"))
     app.add_handler(CallbackQueryHandler(delete_license_callback,  pattern="^adm_del_lic_"))
-    app.add_handler(CallbackQueryHandler(manage_users_callback,    pattern="^cb_manage_users$"))
-    app.add_handler(CallbackQueryHandler(unban_callback,           pattern="^adm_unban_"))
-    app.add_handler(CallbackQueryHandler(announce_callback,        pattern="^cb_announce$"))
-    app.add_handler(CallbackQueryHandler(manage_harga_callback,    pattern="^cb_manage_harga$"))
+    app.add_handler(CallbackQueryHandler(manage_users_callback,       pattern="^cb_manage_users$"))
+    app.add_handler(CallbackQueryHandler(show_userlist_ban_callback,  pattern="^adm_show_userlist_ban$"))
+    app.add_handler(CallbackQueryHandler(show_userlist_unban_callback,pattern="^adm_show_userlist_unban$"))
+    app.add_handler(CallbackQueryHandler(ban_direct_callback,         pattern="^adm_ban_\\d+$"))
+    app.add_handler(CallbackQueryHandler(unban_callback,              pattern="^adm_unban_"))
+    app.add_handler(CallbackQueryHandler(announce_callback,           pattern="^cb_announce$"))
+    app.add_handler(CallbackQueryHandler(manage_harga_callback,       pattern="^cb_manage_harga$"))
     app.add_handler(CallbackQueryHandler(logs_callback,           pattern="^cb_logs$"))
     app.add_handler(CallbackQueryHandler(settings_callback,       pattern="^cb_settings$"))
     app.add_handler(CallbackQueryHandler(set_botinfo_menu,        pattern="^cb_set_botinfo$"))
