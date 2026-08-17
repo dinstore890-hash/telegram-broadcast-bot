@@ -310,9 +310,44 @@ async def coba_lagi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
             )
             return
 
-    # Sudah join — tampilkan dashboard
-    text, active = await _build_user_dashboard(user.id, user.first_name or "")
-    await query.edit_message_text(text, reply_markup=_user_keyboard(active))
+    # Sudah join — tampilkan pesan sambutan dulu
+    bot_name    = db.get_setting("bot_title",   "💎 Gmail Market JASNEB 💎")
+    bot_owner   = db.get_setting("bot_owner",   "@GmailMarket67")
+    bot_channel = db.get_setting("bot_channel", "https://t.me/GmailxMarket")
+
+    lic = db.get_license(user.id)
+    active = lic and db.is_license_active(user.id)
+    paket_info = f"📦 Paket  : {lic['paket']}" if active else "📦 Status : Belum punya lisensi"
+
+    sambutan = (
+        f"✅ Terimakasih sudah support channel kami!\n"
+        f"\n"
+        f"🚀 Selamat Datang di {bot_name}\n"
+        f"\n"
+        f"👋 Halo, {user.first_name or 'Kawan'}!\n"
+        f"\n"
+        f"🌟🌟🌟\n"
+        f"📢 Selamat! Kamu sudah bergabung di\n"
+        f"lingkungan Userbot JASNEB by {bot_owner}!\n"
+        f"\n"
+        f"Dengan bot ini kamu bisa:\n"
+        f"• Broadcast otomatis ke ratusan grup\n"
+        f"• Pakai akun Telegram sendiri\n"
+        f"• Jalan 24 jam nonstop tanpa repot\n"
+        f"\n"
+        f"📢 Informasi Akun\n"
+        f"🆔 ID Akun : {user.id}\n"
+        f"{paket_info}\n"
+        f"\n"
+        f"🌟 Gunakan tombol di bawah untuk mulai!"
+    )
+
+    await query.edit_message_text(
+        sambutan,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 Mulai Sekarang", callback_data="cb_dashboard")],
+        ]),
+    )
 
 
 async def dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
