@@ -922,7 +922,13 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 failed += 1
 
             if i < len(targets):
-                await asyncio.sleep(delay)
+                # Sleep terpotong agar pause/stop lebih responsif
+                elapsed = 0
+                while elapsed < delay:
+                    if _ub_cancel.get(user_id) or _ub_paused.get(user_id):
+                        break
+                    await asyncio.sleep(0.5)
+                    elapsed += 0.5
 
         cancelled = _ub_cancel.get(user_id, False)
         _ub_cancel.pop(user_id, None)
