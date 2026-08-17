@@ -339,7 +339,9 @@ async def coba_lagi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"🆔 ID Akun : {user.id}\n"
         f"{paket_info}\n"
         f"\n"
-        f"🌟 Gunakan tombol di bawah untuk mulai!"
+        f"🌟 Gunakan tombol di bawah untuk mulai!\n"
+        f"\n"
+        f"🥳 Risiko & Syarat Menggunakan Userbot."
     )
 
     await query.edit_message_text(
