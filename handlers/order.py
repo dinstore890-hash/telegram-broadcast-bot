@@ -365,7 +365,13 @@ async def admin_confirm_callback(update: Update, context: ContextTypes.DEFAULT_T
     # Kirim invoice ke grup JASNEB AND GMAIL MARKET (topik Invoice)
     INVOICE_GROUP_ID = -1003936397248
     INVOICE_TOPIC_ID = 274
-    buyer = f"@{order['username']}" if order['username'] else str(order['user_id'])
+    # Sensor nama pembeli: huruf pertama + bintang
+    if order['username']:
+        raw = order['username']
+        buyer = "@" + raw[0] + "*" * (len(raw) - 1)
+    else:
+        uid_str = str(order['user_id'])
+        buyer = uid_str[0] + "*" * (len(uid_str) - 1)
     harga_fmt = f"Rp {order['harga']:,}".replace(",", ".")
     try:
         await context.bot.send_message(
