@@ -740,6 +740,7 @@ async def ub_wait_msg_content(update: Update, context: ContextTypes.DEFAULT_TYPE
 # Cancel flags per user
 _ub_cancel: dict[int, bool] = {}
 _ub_paused: dict[int, bool] = {}
+_ub_loop:   dict[int, bool] = {}  # True = mode loop aktif
 
 
 def _stop_pause_btn(paused: bool = False):
@@ -786,16 +787,19 @@ async def ub_broadcast_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     buttons = []
     for m in messages:
         title = m['title'] if m['title'] else f"Pesan #{m['id']}"
-        buttons.append([InlineKeyboardButton(
-            f"📨 {title}",
-            callback_data=f"ub_start_bc_{m['id']}"
-        )])
+        buttons.append([
+            InlineKeyboardButton(f"📨 {title}",   callback_data=f"ub_start_bc_{m['id']}"),
+            InlineKeyboardButton(f"🔁 Loop",       callback_data=f"ub_loop_bc_{m['id']}"),
+        ])
     buttons.append([InlineKeyboardButton("⬅️ Kembali", callback_data="ub_home")])
 
     await query.edit_message_text(
         f"╭─ 📢 PILIH PESAN\n"
         f"│\n"
-        f"│  ⤷  Grup aktif: {len(targets)}\n"
+        f"│  ⤷  Grup aktif : {len(targets)}\n"
+        f"│\n"
+        f"│ 📨 = Kirim sekali\n"
+        f"│ 🔁 = Loop otomatis (jeda 60 menit)\n"
         f"│\n"
         f"│ Pilih pesan yang akan dikirim:\n"
         f"╰─",
@@ -807,25 +811,41 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
     query = update.callback_query
     await query.answer()
     user_id = query.from_user.id
-
     msg_id = int(query.data.replace("ub_start_bc_", ""))
+    await _run_broadcast(query, user_id, msg_id, loop=False)
+
+
+async def ub_loop_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    user_id = query.from_user.id
+    msg_id = int(query.data.replace("ub_loop_bc_", ""))
+    await _run_broadcast(query, user_id, msg_id, loop=True)
+
+
+async def _run_broadcast(query, user_id: int, msg_id: int, loop: bool = False, _msg=None) -> None:
     msg_obj = db.get_user_message_by_id(msg_id, user_id)
     if not msg_obj:
-        await query.edit_message_text("╭─ ⚠️ Pesan tidak ditemukan.\n╰─", reply_markup=_BACK_BTN)
+        if query:
+            await query.edit_message_text("╭─ ⚠️ Pesan tidak ditemukan.\n╰─", reply_markup=_BACK_BTN)
         return
 
     client = await _get_user_client(user_id)
     if not client:
-        await query.edit_message_text(
-            "╭─ ❌ Akun belum login.\n╰─ Login dulu via menu Akun.",
-            reply_markup=_BACK_BTN,
-        )
+        if query:
+            await query.edit_message_text(
+                "╭─ ❌ Akun belum login.\n╰─ Login dulu via menu Akun.",
+                reply_markup=_BACK_BTN,
+            )
         return
 
     targets = db.get_active_user_targets(user_id)
     delay = int(db.get_user_setting(user_id, "delay", "5"))
     _ub_cancel[user_id] = False
     _ub_paused[user_id] = False
+    _ub_loop[user_id] = loop
+
+    LOOP_INTERVAL = 60 * 60  # 60 menit dalam detik
 
     # Tentukan watermark berdasarkan paket
     lic = db.get_license(user_id)
@@ -841,13 +861,31 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
         else:
             watermark = "\n\n• *Promote Auto by* @jasnebbot\n• Development by @GmailMarket67"
 
-    msg = await query.edit_message_text(
-        f"╭─ 📢 BROADCAST BERJALAN\n"
-        f"│  ⤷  Progress: 0/{len(targets)}\n"
-        f"│  ⤷  Delay   : {delay} detik\n"
-        f"╰─ Mohon tunggu...",
-        reply_markup=_stop_pause_btn(),
-    )
+    label = "🔁 BROADCAST LOOP" if loop else "📢 BROADCAST BERJALAN"
+    interval_line = "│  ⤷  Interval: 60 menit\n" if loop else ""
+
+    if _msg:
+        msg = _msg
+        try:
+            await msg.edit_text(
+                f"╭─ {label}\n"
+                f"│  ⤷  Progress: 0/{len(targets)}\n"
+                f"│  ⤷  Delay   : {delay} detik\n"
+                f"{interval_line}"
+                f"╰─ Mohon tunggu...",
+                reply_markup=_stop_pause_btn(),
+            )
+        except Exception:
+            pass
+    else:
+        msg = await query.edit_message_text(
+            f"╭─ {label}\n"
+            f"│  ⤷  Progress: 0/{len(targets)}\n"
+            f"│  ⤷  Delay   : {delay} detik\n"
+            f"{interval_line}"
+            f"╰─ Mohon tunggu...",
+            reply_markup=_stop_pause_btn(),
+        )
 
     broadcast_id = db.create_user_broadcast(user_id, msg_obj["content"], len(targets))
 
@@ -870,7 +908,7 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if i % 5 == 0 or i == 1:
                 try:
                     await msg.edit_text(
-                        f"╭─ 📢 BROADCAST BERJALAN\n"
+                        f"╭─ {'🔁 BROADCAST LOOP' if _ub_loop.get(user_id) else '📢 BROADCAST BERJALAN'}\n"
                         f"│  ⤷  Progress: {i}/{len(targets)}\n"
                         f"│  ⤷  Berhasil: {success}\n"
                         f"│  ⤷  Gagal   : {failed}\n"
@@ -924,20 +962,82 @@ async def ub_start_broadcast(update: Update, context: ContextTypes.DEFAULT_TYPE)
         _ub_paused.pop(user_id, None)
         db.finish_user_broadcast(broadcast_id, success, failed)
 
-        try:
-            await msg.edit_text(
-                f"╭─ {'⚠️ BROADCAST DIBATALKAN' if cancelled else '✅ BROADCAST SELESAI'}\n"
-                f"│\n"
-                f"│  ⤷  Total   : {len(targets)}\n"
-                f"│  ⤷  Berhasil: {success}\n"
-                f"│  ⤷  Gagal   : {failed}\n"
-                f"╰─",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🏠 Dashboard", callback_data="ub_home")]
-                ]),
-            )
-        except Exception:
-            pass
+        # Jika loop dan tidak dibatalkan — tunggu interval lalu mulai lagi
+        if loop and not cancelled:
+            try:
+                await msg.edit_text(
+                    f"╭─ 🔁 PUTARAN SELESAI\n"
+                    f"│\n"
+                    f"│  ⤷  Berhasil : {success}\n"
+                    f"│  ⤷  Gagal    : {failed}\n"
+                    f"│\n"
+                    f"│ ⏳ Putaran berikutnya dalam 60 menit...\n"
+                    f"╰─",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🛑 Stop Loop", callback_data="ub_stop_broadcast")]
+                    ]),
+                )
+            except Exception:
+                pass
+
+            # Countdown 60 menit, cek cancel setiap 30 detik
+            elapsed = 0
+            while elapsed < LOOP_INTERVAL:
+                await asyncio.sleep(30)
+                elapsed += 30
+                if _ub_cancel.get(user_id):
+                    break
+                # Update countdown setiap 5 menit
+                if elapsed % 300 == 0:
+                    sisa = (LOOP_INTERVAL - elapsed) // 60
+                    try:
+                        await msg.edit_text(
+                            f"╭─ 🔁 MENUNGGU PUTARAN BERIKUTNYA\n"
+                            f"│\n"
+                            f"│  ⤷  Sisa    : {sisa} menit lagi\n"
+                            f"│  ⤷  Berhasil: {success}\n"
+                            f"│  ⤷  Gagal   : {failed}\n"
+                            f"╰─",
+                            reply_markup=InlineKeyboardMarkup([
+                                [InlineKeyboardButton("🛑 Stop Loop", callback_data="ub_stop_broadcast")]
+                            ]),
+                        )
+                    except Exception:
+                        pass
+
+            if not _ub_cancel.get(user_id):
+                # Mulai putaran baru
+                _ub_cancel[user_id] = False
+                _ub_paused[user_id] = False
+                asyncio.create_task(_run_broadcast(None, user_id, msg_id, loop=True, _msg=msg))
+            else:
+                _ub_cancel.pop(user_id, None)
+                _ub_loop.pop(user_id, None)
+                try:
+                    await msg.edit_text(
+                        "╭─ 🛑 LOOP DIHENTIKAN\n│\n│ Broadcast loop telah dihentikan.\n╰─",
+                        reply_markup=InlineKeyboardMarkup([
+                            [InlineKeyboardButton("🏠 Dashboard", callback_data="ub_home")]
+                        ]),
+                    )
+                except Exception:
+                    pass
+        else:
+            _ub_loop.pop(user_id, None)
+            try:
+                await msg.edit_text(
+                    f"╭─ {'⚠️ BROADCAST DIBATALKAN' if cancelled else '✅ BROADCAST SELESAI'}\n"
+                    f"│\n"
+                    f"│  ⤷  Total   : {len(targets)}\n"
+                    f"│  ⤷  Berhasil: {success}\n"
+                    f"│  ⤷  Gagal   : {failed}\n"
+                    f"╰─",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🏠 Dashboard", callback_data="ub_home")]
+                    ]),
+                )
+            except Exception:
+                pass
 
     asyncio.create_task(_run())
 
