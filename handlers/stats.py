@@ -376,13 +376,14 @@ async def reset_user_menu_callback(update: Update, context: ContextTypes.DEFAULT
     name = u["username"] or u["first_name"] if u else str(user_id)
 
     await query.edit_message_text(
-        f"╭─ 🗑️ RESET DATA USER\n│\n│ User: {name} ({user_id})\n│\n│ Pilih data yang mau direset:\n╰─",
+        f"╭─ 🗑️ RESET DATA USER\n│\n│ User: {name} ({user_id})\n│\n│ Pilih aksi:\n╰─",
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("👥 Reset Grup",   callback_data=f"adm_reset_grup_{user_id}")],
-            [InlineKeyboardButton("📝 Reset Pesan",  callback_data=f"adm_reset_pesan_{user_id}")],
-            [InlineKeyboardButton("📱 Reset Akun",   callback_data=f"adm_reset_akun_{user_id}")],
-            [InlineKeyboardButton("💣 Reset Semua",  callback_data=f"adm_reset_all_{user_id}")],
-            [InlineKeyboardButton("⬅️ Kembali",      callback_data="adm_show_userlist_reset")],
+            [InlineKeyboardButton("📊 Lihat Broadcast", callback_data=f"adm_lihat_bc_{user_id}")],
+            [InlineKeyboardButton("👥 Reset Grup",      callback_data=f"adm_reset_grup_{user_id}")],
+            [InlineKeyboardButton("📝 Reset Pesan",     callback_data=f"adm_reset_pesan_{user_id}")],
+            [InlineKeyboardButton("📱 Reset Akun",      callback_data=f"adm_reset_akun_{user_id}")],
+            [InlineKeyboardButton("💣 Reset Semua",     callback_data=f"adm_reset_all_{user_id}")],
+            [InlineKeyboardButton("⬅️ Kembali",         callback_data="adm_show_userlist_reset")],
         ]),
     )
 
@@ -432,6 +433,52 @@ async def reset_user_data_callback(update: Update, context: ContextTypes.DEFAULT
         ]),
     )
     return ConversationHandler.END
+
+
+async def lihat_broadcast_user_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Admin lihat history broadcast user tertentu."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    user_id = int(query.data.replace("adm_lihat_bc_", ""))
+    u = next((x for x in db.get_all_users() if x["user_id"] == user_id), None)
+    name = (u["username"] or u["first_name"]) if u else str(user_id)
+
+    history = db.get_user_broadcast_history(user_id, limit=10)
+
+    if not history:
+        await query.edit_message_text(
+            f"╭─ 📊 BROADCAST {name}\n│\n│ Belum ada riwayat broadcast.\n╰─",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("⬅️ Kembali", callback_data=f"adm_reset_menu_{user_id}")
+            ]]),
+        )
+        return
+
+    text = f"╭─ 📊 BROADCAST {name}\n│\n"
+    for i, h in enumerate(history, 1):
+        tanggal = h["created_at"][:16].replace("T", " ") if h["created_at"] else "—"
+        total   = h["total"] or 0
+        success = h["success"] or 0
+        failed  = h["failed"] or 0
+        status  = "✅" if h["status"] == "completed" else "⚡"
+        text += (
+            f"│ {i}. {status} {tanggal}\n"
+            f"│  ⤷  Total   : {total}\n"
+            f"│  ⤷  Berhasil: {success}\n"
+            f"│  ⤷  Gagal   : {failed}\n"
+            f"│\n"
+        )
+    text += "╰─ 10 sesi terakhir"
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([[
+            InlineKeyboardButton("⬅️ Kembali", callback_data=f"adm_reset_menu_{user_id}")
+        ]]),
+    )
 
 
 async def _cancel_admin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
