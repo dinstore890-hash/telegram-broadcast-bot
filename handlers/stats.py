@@ -535,6 +535,11 @@ async def wait_announce_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     async def _send():
         sent = failed = 0
+        success_users = []
+        failed_users  = []
+        all_users = db.get_all_users()
+        uid_to_name = {u["user_id"]: u["username"] or u["first_name"] or str(u["user_id"]) for u in all_users}
+
         for uid in user_ids:
             try:
                 await bot.send_message(
@@ -543,9 +548,24 @@ async def wait_announce_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
                     parse_mode="Markdown",
                 )
                 sent += 1
+                success_users.append(uid_to_name.get(uid, str(uid)))
             except Exception:
                 failed += 1
+                failed_users.append(uid_to_name.get(uid, str(uid)))
             await asyncio.sleep(0.05)
+
+        # Simpan detail ke context untuk lihat detail
+        detail_text = f"╭─ 📋 DETAIL PENGUMUMAN\n│\n"
+        detail_text += f"│ ✅ BERHASIL ({sent}):\n"
+        for name in success_users:
+            detail_text += f"│  • {name}\n"
+        detail_text += f"│\n│ ❌ GAGAL ({failed}):\n"
+        for name in failed_users:
+            detail_text += f"│  • {name}\n"
+        detail_text += "╰─"
+
+        # Simpan ke cache sementara
+        context.bot_data["announce_detail"] = detail_text
 
         try:
             await progress_msg.edit_text(
@@ -555,7 +575,8 @@ async def wait_announce_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 f"│  ⤷  Gagal    : {failed}\n"
                 f"╰─",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
+                    [InlineKeyboardButton("📋 Lihat Detail", callback_data="cb_announce_detail")],
+                    [InlineKeyboardButton("⬅️ Kembali",      callback_data="cb_dashboard")],
                 ]),
             )
         except Exception:
@@ -564,6 +585,26 @@ async def wait_announce_text(update: Update, context: ContextTypes.DEFAULT_TYPE)
     asyncio.create_task(_send())
     db.add_log("INFO", f"Broadcast pengumuman dikirim ke {len(user_ids)} user.")
     return ConversationHandler.END
+
+
+async def announce_detail_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Tampilkan detail berhasil/gagal pengumuman."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    detail = context.bot_data.get("announce_detail", "╭─ ⚠️ Detail tidak tersedia.\n╰─")
+    # Potong kalau terlalu panjang
+    if len(detail) > 4000:
+        detail = detail[:3990] + "\n│ ...\n╰─"
+
+    await query.edit_message_text(
+        detail,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
+        ]),
+    )
 
 
 def build_announce_conversation():
