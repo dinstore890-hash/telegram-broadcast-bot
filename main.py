@@ -5,7 +5,7 @@ import asyncio
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, CallbackQueryHandler
 
-from config import BOT_TOKEN, LOG_DIR
+from config import BOT_TOKEN, LOG_DIR, ADMIN_IDS
 from database import init_db
 from services import telegram_client
 
@@ -91,6 +91,8 @@ async def post_init(app) -> None:
 
     # Start background task notifikasi expired
     asyncio.create_task(_expired_notif_loop(app.bot))
+    # Start background task statistik harian
+    asyncio.create_task(_daily_stats_loop(app.bot))
 
 
 async def _expired_notif_loop(bot) -> None:
@@ -153,6 +155,56 @@ async def _expired_notif_loop(bot) -> None:
         except Exception as e:
             logger.error(f"_expired_notif_loop error: {e}")
             await asyncio.sleep(3600)  # retry 1 jam kemudian
+
+
+async def _daily_stats_loop(bot) -> None:
+    """Kirim statistik harian ke admin setiap jam 23.00 WIB."""
+    from datetime import datetime, timezone, timedelta
+    WIB = timezone(timedelta(hours=7))
+    while True:
+        try:
+            now = datetime.now(WIB)
+            target = now.replace(hour=23, minute=0, second=0, microsecond=0)
+            if now >= target:
+                target += timedelta(days=1)
+            wait_seconds = (target - now).total_seconds()
+            logger.info(f"Statistik harian: menunggu {int(wait_seconds//3600)} jam {int((wait_seconds%3600)//60)} menit")
+            await asyncio.sleep(wait_seconds)
+
+            # Ambil statistik hari ini
+            date_str = datetime.now(WIB).strftime("%Y-%m-%d")
+            s = db.get_daily_stats(date_str)
+            harga_fmt = f"Rp {s['pendapatan']:,}".replace(",", ".")
+            tanggal_fmt = datetime.now(WIB).strftime("%d %B %Y")
+
+            teks = (
+                f"📊 STATISTIK HARIAN - {tanggal_fmt}\n\n"
+                f"👥 User:\n"
+                f"  ⤷  Pengguna Baru   : {s['new_users']}\n"
+                f"  ⤷  Total Pengguna  : {s['total_users']}\n\n"
+                f"📢 Broadcast Userbot:\n"
+                f"  ⤷  Total Terkirim  : {s['ub_success']}\n"
+                f"  ⤷  Total Gagal     : {s['ub_failed']}\n"
+                f"  ⤷  Total Sesi      : {s['ub_sesi']}\n\n"
+                f"💰 Order Hari Ini:\n"
+                f"  ⤷  Order Masuk     : {s['orders_today']}\n"
+                f"  ⤷  Total Pendapatan: {harga_fmt}\n\n"
+                f"🎫 Lisensi:\n"
+                f"  ⤷  Aktif           : {s['lic_aktif']}\n"
+                f"  ⤷  Expired Hari Ini: {s['lic_expired']}"
+            )
+
+            # Kirim ke semua admin
+            for admin_id in ADMIN_IDS:
+                try:
+                    await bot.send_message(chat_id=admin_id, text=teks)
+                    logger.info(f"Statistik harian terkirim ke admin {admin_id}")
+                except Exception as e:
+                    logger.warning(f"Gagal kirim statistik ke admin {admin_id}: {e}")
+
+        except Exception as e:
+            logger.error(f"_daily_stats_loop error: {e}")
+            await asyncio.sleep(3600)
 
 
 async def post_shutdown(app) -> None:

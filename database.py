@@ -752,6 +752,60 @@ def get_all_user_ids() -> list[int]:
         return [r["user_id"] for r in rows]
 
 
+def get_daily_stats(date_str: str) -> dict:
+    """Ambil statistik harian berdasarkan tanggal (format: YYYY-MM-DD)."""
+    with get_connection() as conn:
+        # User baru hari ini
+        new_users = conn.execute(
+            "SELECT COUNT(*) FROM users WHERE joined_at LIKE ?", (f"{date_str}%",)
+        ).fetchone()[0]
+        total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+
+        # Broadcast userbot hari ini
+        ub_success = conn.execute(
+            "SELECT COALESCE(SUM(success),0) FROM user_broadcasts WHERE created_at LIKE ? AND status='completed'",
+            (f"{date_str}%",)
+        ).fetchone()[0]
+        ub_failed = conn.execute(
+            "SELECT COALESCE(SUM(failed),0) FROM user_broadcasts WHERE created_at LIKE ? AND status='completed'",
+            (f"{date_str}%",)
+        ).fetchone()[0]
+        ub_sesi = conn.execute(
+            "SELECT COUNT(*) FROM user_broadcasts WHERE created_at LIKE ? AND status='completed'",
+            (f"{date_str}%",)
+        ).fetchone()[0]
+
+        # Order hari ini
+        orders_today = conn.execute(
+            "SELECT COUNT(*) FROM orders WHERE created_at LIKE ? AND status='confirmed'",
+            (f"{date_str}%",)
+        ).fetchone()[0]
+        pendapatan = conn.execute(
+            "SELECT COALESCE(SUM(harga),0) FROM orders WHERE created_at LIKE ? AND status='confirmed'",
+            (f"{date_str}%",)
+        ).fetchone()[0]
+
+        # Lisensi aktif
+        lic_aktif = conn.execute(
+            "SELECT COUNT(*) FROM licenses WHERE expired_at > ?", (datetime.now().isoformat(),)
+        ).fetchone()[0]
+        lic_expired = conn.execute(
+            "SELECT COUNT(*) FROM licenses WHERE expired_at LIKE ?", (f"{date_str}%",)
+        ).fetchone()[0]
+
+    return {
+        "new_users":    new_users,
+        "total_users":  total_users,
+        "ub_success":   ub_success,
+        "ub_failed":    ub_failed,
+        "ub_sesi":      ub_sesi,
+        "orders_today": orders_today,
+        "pendapatan":   pendapatan,
+        "lic_aktif":    lic_aktif,
+        "lic_expired":  lic_expired,
+    }
+
+
 # ── Paket Harga (bisa diubah admin) ──────────────────────────────────────────
 
 _DEFAULT_PAKETS = {
