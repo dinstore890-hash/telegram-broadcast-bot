@@ -668,12 +668,11 @@ async def backup_db_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 document=f,
                 filename=f"backup_{now_str}.db",
                 caption=(
-                    f"📦 *Backup Database*\n"
+                    f"📦 Backup Database\n"
                     f"⏰ {now_str}\n"
                     f"📁 {size_kb} KB\n\n"
                     f"Simpan file ini sebagai cadangan data bot."
                 ),
-                parse_mode="Markdown",
             )
         db.add_log("INFO", f"Backup DB berhasil dikirim ke admin {query.from_user.id}")
         await query.edit_message_text(
