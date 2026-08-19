@@ -80,19 +80,11 @@ async def _build_user_dashboard(user_id: int, first_name: str = "") -> str:
     active = lic and db.is_license_active(user_id)
     ub_stats = db.get_userbot_stats_user(user_id)
 
-    # Custom emoji animasi (premium)
-    EMOJI_TITLE    = '<tg-emoji emoji-id="5279099962655816924">💎</tg-emoji>'
-    EMOJI_GREETING = '<tg-emoji emoji-id="5210956306952758910">👋</tg-emoji>'
-    EMOJI_LISENSI  = '<tg-emoji emoji-id="5474222726862350340">🎫</tg-emoji>'
-    EMOJI_STATS    = '<tg-emoji emoji-id="5231200819986047254">📊</tg-emoji>'
-    EMOJI_INFO     = '<tg-emoji emoji-id="5397782960512444700">ℹ️</tg-emoji>'
-    EMOJI_ROBOT    = '<tg-emoji emoji-id="5447410659077661506">🤖</tg-emoji>'
-
     if active:
         expired = lic["expired_at"][:10]
         lisensi_info = (
             f"│\n"
-            f"│ {EMOJI_LISENSI} LISENSI AKTIF\n"
+            f"│ 🎫 LISENSI AKTIF\n"
             f"│  ⤷  Paket   : {lic['paket']}\n"
             f"│  ⤷  Max Grup: {lic['max_grup']}\n"
             f"│  ⤷  Expired : {expired}\n"
@@ -107,23 +99,23 @@ async def _build_user_dashboard(user_id: int, first_name: str = "") -> str:
 
     ub_stats_info = (
         f"│\n"
-        f"│ {EMOJI_STATS} 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐁𝐑𝐎𝐀𝐃𝐂𝐀𝐒𝐓𝐊𝐔\n"
+        f"│ 📊 𝐒𝐓𝐀𝐓𝐈𝐒𝐓𝐈𝐊 𝐁𝐑𝐎𝐀𝐃𝐂𝐀𝐒𝐓𝐊𝐔\n"
         f"│  ⤷  Total Terkirim : {ub_stats['total_success']}\n"
         f"│  ⤷  Total Gagal    : {ub_stats['total_failed']}\n"
         f"│  ⤷  Total Sesi     : {ub_stats['total_broadcasts']}\n"
     )
 
     return (
-        f"╭─ {EMOJI_TITLE} {bot_title}\n"
+        f"╭─ {bot_title}\n"
         f"│\n"
-        f"│ Halo, {first_name + '! ' if first_name else ''}{greeting} {EMOJI_GREETING}\n"
+        f"│ Halo, {first_name + '! ' if first_name else ''}{greeting} 👋\n"
         f"{lisensi_info}"
         f"{ub_stats_info}"
         f"│ ∘₊✧──────✧₊∘∘₊✧──────✧₊∘\n"
-        f"│ {EMOJI_INFO} 𝐎𝐰𝐧𝐞𝐫 {bot_owner}\n"
+        f"│  𝐎𝐰𝐧𝐞𝐫 {bot_owner}\n"
         f"│  👥 Grup    : {bot_grup}\n"
         f"│  📢 Channel : {bot_channel}\n"
-        f"╰─ {bot_tagline} {EMOJI_ROBOT}"
+        f"╰─ {bot_tagline}"
     ), active
 
 
@@ -296,7 +288,7 @@ async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await update.message.reply_text(text, reply_markup=_main_keyboard(is_running()))
     else:
         text, active = await _build_user_dashboard(user.id, user.first_name or "")
-        await update.message.reply_text(text, reply_markup=_user_keyboard(active), parse_mode="HTML")
+        await update.message.reply_text(text, reply_markup=_user_keyboard(active))
 
 
 async def coba_lagi_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -393,7 +385,7 @@ async def dashboard_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     else:
         text, active = await _build_user_dashboard(query.from_user.id, query.from_user.first_name or "")
         try:
-            await query.edit_message_text(text, reply_markup=_user_keyboard(active), parse_mode="HTML")
+            await query.edit_message_text(text, reply_markup=_user_keyboard(active))
         except Exception:
             pass
 
