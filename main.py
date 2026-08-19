@@ -51,7 +51,7 @@ from handlers.stats import stats_callback, manage_licenses_callback, delete_lice
     manage_users_callback, unban_callback, announce_callback, \
     show_userlist_ban_callback, show_userlist_unban_callback, ban_direct_callback, \
     show_userlist_reset_callback, reset_user_menu_callback, reset_user_data_callback, \
-    lihat_broadcast_user_callback, announce_detail_callback, \
+    lihat_broadcast_user_callback, announce_detail_callback, backup_db_callback, \
     build_ban_conversation, build_announce_conversation
 from config import is_admin
 import database as db
@@ -288,6 +288,7 @@ def build_app():
     app.add_handler(CallbackQueryHandler(lihat_broadcast_user_callback, pattern="^adm_lihat_bc_\\d+$"))
     app.add_handler(CallbackQueryHandler(announce_callback,           pattern="^cb_announce$"))
     app.add_handler(CallbackQueryHandler(announce_detail_callback,    pattern="^cb_announce_detail$"))
+    app.add_handler(CallbackQueryHandler(backup_db_callback,          pattern="^cb_backup_db$"))
     app.add_handler(CallbackQueryHandler(manage_harga_callback,       pattern="^cb_manage_harga$"))
     app.add_handler(CallbackQueryHandler(logs_callback,           pattern="^cb_logs$"))
     app.add_handler(CallbackQueryHandler(settings_callback,       pattern="^cb_settings$"))

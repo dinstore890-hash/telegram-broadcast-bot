@@ -616,3 +616,82 @@ def build_announce_conversation():
         fallbacks=[MessageHandler(filters.COMMAND, _cancel_admin)],
         per_chat=True, per_user=True, per_message=False, allow_reentry=True,
     )
+
+
+# ── Backup Database ───────────────────────────────────────────────────────────
+
+async def backup_db_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Kirim file broadcast.db ke admin sebagai backup."""
+    query = update.callback_query
+    await query.answer()
+    if not is_admin(query.from_user.id):
+        return
+
+    import os
+    from datetime import datetime, timezone, timedelta
+
+    WIB = timezone(timedelta(hours=7))
+    now_str = datetime.now(WIB).strftime("%Y%m%d_%H%M%S")
+
+    # Cari path database
+    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "broadcast.db")
+    if not os.path.exists(db_path):
+        # fallback ke root
+        db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "broadcast.db")
+
+    if not os.path.exists(db_path):
+        await query.edit_message_text(
+            "╭─ ❌ BACKUP GAGAL\n│\n│ File database tidak ditemukan.\n╰─",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
+            ]),
+        )
+        return
+
+    size_kb = os.path.getsize(db_path) // 1024
+
+    await query.edit_message_text(
+        f"╭─ 📤 BACKUP DATABASE\n"
+        f"│\n"
+        f"│  ⤷  File   : broadcast.db\n"
+        f"│  ⤷  Ukuran : {size_kb} KB\n"
+        f"│  ⤷  Waktu  : {now_str}\n"
+        f"│\n"
+        f"│ Mengirim file...\n"
+        f"╰─"
+    )
+
+    try:
+        with open(db_path, "rb") as f:
+            await context.bot.send_document(
+                chat_id=query.from_user.id,
+                document=f,
+                filename=f"backup_{now_str}.db",
+                caption=(
+                    f"📦 *Backup Database*\n"
+                    f"⏰ {now_str}\n"
+                    f"📁 {size_kb} KB\n\n"
+                    f"Simpan file ini sebagai cadangan data bot."
+                ),
+                parse_mode="Markdown",
+            )
+        db.add_log("INFO", f"Backup DB berhasil dikirim ke admin {query.from_user.id}")
+        await query.edit_message_text(
+            f"╭─ ✅ BACKUP TERKIRIM\n"
+            f"│\n"
+            f"│  ⤷  File   : backup_{now_str}.db\n"
+            f"│  ⤷  Ukuran : {size_kb} KB\n"
+            f"│\n"
+            f"│ Cek pesan di atas ☝️\n"
+            f"╰─",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
+            ]),
+        )
+    except Exception as e:
+        await query.edit_message_text(
+            f"╭─ ❌ BACKUP GAGAL\n│\n│ Error: {str(e)[:100]}\n╰─",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("⬅️ Kembali", callback_data="cb_dashboard")]
+            ]),
+        )

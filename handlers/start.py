@@ -36,6 +36,7 @@ def _main_keyboard(is_broadcasting: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton("📢 Pengumuman",  callback_data="cb_announce"),
             InlineKeyboardButton("💰 Ubah Harga",  callback_data="cb_manage_harga"),
         ],
+        [InlineKeyboardButton("📤 Backup DB", callback_data="cb_backup_db")],
         [InlineKeyboardButton("🔄 Refresh", callback_data="cb_dashboard")],
     ])
 
